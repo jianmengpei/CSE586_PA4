@@ -44,10 +44,12 @@ public class SimpleDynamoProvider extends ContentProvider {
 		// TODO Auto-generated method stub
 		Log.i("delete",selection);
 		if(selection.equals("*")){
-			count = 0;
+
 			//SendMsg(String.valueOf(Integer.valueOf(selfavd) * 2), String.valueOf(Integer.valueOf(successor) * 2), "DeleteAll",null, null,null,null,null);
 			boolean coordinatoralive = true;
-
+			count = 0;
+			precount = 0;
+			preprecount = 0;
 			//send the msg to the next to delete all the contentValues
 			Socket socket = null;
 			try {
@@ -108,18 +110,59 @@ public class SimpleDynamoProvider extends ContentProvider {
 			}
 		}else if(selection.equals("@")){
 			count = 0;
-			//precount = 0;
-			//preprecount = 0;
-		}else{
-			for(int i=0; i<count; i++){
-				if(mContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)){
-					for(int j=i; j<count-1; j++){
-						mContentValuesBase[j]=mContentValuesBase[j+1];
-					}
-					count--;
-					return 0;
+			precount = 0;
+			preprecount = 0;
+			//suc and sucsucddelete
+			int [] next = {0,0};
+			for (int i = 0; i < 5; i++) {
+				if (avdNum[i].equals(selfAvdNum)) {
+					next[0] = (i + 1) % 5;
+					next[1] = (next[0] + 1) % 5;
+					break;
 				}
 			}
+			//send to the next and next of next node
+			for (int i = 0; i < 2; i++) {
+				Socket newSocket = null;
+				MsgToSend msgToSend = null;
+				if (i == 0) {
+					msgToSend = SetMsgToSend("DeletePre", null, null);
+				} else
+					msgToSend = SetMsgToSend("DeletePrePre", null, null);
+				try {
+					newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next[i]]) * 2);
+					ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
+					Log.i("DeleteMyLocalsendto", avdNum[next[i]]);
+					newoutputStream.writeObject(msgToSend);
+					newoutputStream.flush();
+				} catch (UnknownHostException e) {
+					e.printStackTrace();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+				try {
+					newSocket.setSoTimeout(2000);
+					ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
+					MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
+					if (receviedMsg.getType().equals("DeleteSucceed")) {
+						Log.i("DeleteLocal", "Succeeds");
+					}
+					newSocket.close();
+				} catch (SocketException e) {
+					e.printStackTrace();
+					try{
+						Log.i("DeleteLocalFailed","because "+avdNum[next[i]]+" shot down");
+						newSocket.close();
+					}catch (IOException e2){
+						e2.printStackTrace();
+					}
+				} catch (IOException e) {
+					e.printStackTrace();
+				} catch (ClassNotFoundException e) {
+					e.printStackTrace();
+				}
+			}
+		}else {
 			int des = 0;
 			try {
 				String selectionHash = genHash(selection);
@@ -131,69 +174,130 @@ public class SimpleDynamoProvider extends ContentProvider {
 					}
 				}
 				if (avdHash[4].compareTo(selectionHash) < 0) des = 0;
-			}catch (NoSuchAlgorithmException e){
+			} catch (NoSuchAlgorithmException e) {
 				e.printStackTrace();
 			}
-			boolean coordinatoralive = true;
-			Socket socket = null;
-			try {
-				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[des])*2);
-				MsgToSend msgToSend = SetMsgToSend("DeleteOneFirstTrail", selection,null);
-				ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
-				outputStream.writeObject(msgToSend);
-				outputStream.flush();
-			}catch (UnknownHostException e){
-				e.printStackTrace();
-			}catch (IOException e){
-				e.printStackTrace();
-			}
-			try {
-				socket.setSoTimeout(2000);
-				ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-				MsgToSend receviedMsg = (MsgToSend)inputStream.readObject();
-				if(receviedMsg.getType().equals("DeleteSucceed")){
-					Log.i("Delete","Succeeds");
+			if (avdNum[des].equals(selfAvdNum)) {
+				for (int i = 0; i < count; i++) {
+					if (mContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)) {
+						for (int j = i; j < count - 1; j++) {
+							mContentValuesBase[j] = mContentValuesBase[j + 1];
+						}
+						count--;
+					}
 				}
-				coordinatoralive = true;
-				socket.close();
-			}catch(SocketException e){
-				e.printStackTrace();
-				try{
-					coordinatoralive = false;
-					socket.close();
-				}catch (IOException e2){
-					e2.printStackTrace();
+				//send to next and nextnext to delete this one
+				int[] next = {0, 0};
+				for (int i = 0; i < 5; i++) {
+					if (avdNum[i].equals(selfAvdNum)) {
+						next[0] = (i + 1) % 5;
+						next[1] = (next[0] + 1) % 5;
+						break;
+					}
 				}
-			}catch (IOException e){
-				e.printStackTrace();
-			}catch (ClassNotFoundException e){
-				e.printStackTrace();
-			}
-
-			if(!coordinatoralive ) {
+				//send to the next and next of next node
+				for (int i = 0; i < 2; i++) {
+					Socket newSocket = null;
+					MsgToSend msgToSend = null;
+					if (i == 0) {
+						msgToSend = SetMsgToSend("DeleteOneInPre", null, null);
+					} else
+						msgToSend = SetMsgToSend("DeleteOneInPrePre", null, null);
+					try {
+						newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next[i]]) * 2);
+						ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
+						Log.i("DeleteOneSendTo", avdNum[next[i]]);
+						newoutputStream.writeObject(msgToSend);
+						newoutputStream.flush();
+					} catch (UnknownHostException e) {
+						e.printStackTrace();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					try {
+						newSocket.setSoTimeout(2000);
+						ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
+						MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
+						if (receviedMsg.getType().equals("DeleteSucceed")) {
+							Log.i("DeleteOne", "Succeeds");
+						}
+						newSocket.close();
+					} catch (SocketException e) {
+						e.printStackTrace();
+						try {
+							Log.i("DeleteOneFailed", "because " + avdNum[next[i]] + " shot down");
+							newSocket.close();
+						} catch (IOException e2) {
+							e2.printStackTrace();
+						}
+					} catch (IOException e) {
+						e.printStackTrace();
+					} catch (ClassNotFoundException e) {
+						e.printStackTrace();
+					}
+				}
+			} else {
+				boolean coordinatoralive = true;
+				Socket socket = null;
 				try {
-					socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(des + 1) % 5]) * 2);
-					MsgToSend msgToSend = SetMsgToSend("DeleteOneSecondTrail", selection, null);
+					socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[des]) * 2);
+					MsgToSend msgToSend = SetMsgToSend("DeleteOneFirstTrail", selection, null);
 					ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
 					outputStream.writeObject(msgToSend);
 					outputStream.flush();
-
-					ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-					MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
-					if(receviedMsg.getType().equals("DeleteOneSucceed")){
-						Log.i("DeleteOne","Succeed");
-					}
-					socket.close();
 				} catch (UnknownHostException e) {
 					e.printStackTrace();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+				try {
+					socket.setSoTimeout(2000);
+					ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
+					MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
+					if (receviedMsg.getType().equals("DeleteSucceed")) {
+						Log.i("Delete", "Succeeds");
+					}
+					coordinatoralive = true;
+					socket.close();
+				} catch (SocketException e) {
+					e.printStackTrace();
+					try {
+						coordinatoralive = false;
+						socket.close();
+					} catch (IOException e2) {
+						e2.printStackTrace();
+					}
 				} catch (IOException e) {
 					e.printStackTrace();
 				} catch (ClassNotFoundException e) {
 					e.printStackTrace();
 				}
-			}
 
-			//SendMsg(String.valueOf(Integer.valueOf(selfavd) * 2), String.valueOf(Integer.valueOf(successor) * 2), "DeleteOne",selection, null,null,null,null);
+				if (!coordinatoralive) {
+					try {
+						socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(des + 1) % 5]) * 2);
+						MsgToSend msgToSend = SetMsgToSend("DeleteOneSecondTrail", selection, null);
+						ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+						outputStream.writeObject(msgToSend);
+						outputStream.flush();
+
+						ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
+						MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
+						if (receviedMsg.getType().equals("DeleteOneSucceed")) {
+							Log.i("DeleteOne", "Succeed");
+						}
+						socket.close();
+					} catch (UnknownHostException e) {
+						e.printStackTrace();
+					} catch (IOException e) {
+						e.printStackTrace();
+					} catch (ClassNotFoundException e) {
+						e.printStackTrace();
+					}
+				}
+
+				//SendMsg(String.valueOf(Integer.valueOf(selfavd) * 2), String.valueOf(Integer.valueOf(successor) * 2), "DeleteOne",selection, null,null,null,null);
+			}
 		}
 		return 0;
 	}
@@ -239,7 +343,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 				}
 			}
 			//send to the next and next of next node
-			for (int i = 0; i < 1; i++) {
+			for (int i = 0; i < 2; i++) {
 				Socket newSocket = null;
 				MsgToSend msgToSend = null;
 				if (i == 0) {
@@ -380,7 +484,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 
 	@Override
 	public Cursor query(Uri uri, String[] projection, String selection,
-			String[] selectionArgs, String sortOrder) {
+						String[] selectionArgs, String sortOrder) {
 		// TODO Auto-generated method stub
 		Log.i("slection",selection);
 		MatrixCursor cs = new MatrixCursor(matrix, 1);
@@ -576,20 +680,20 @@ public class SimpleDynamoProvider extends ContentProvider {
 
 	@Override
 	public int update(Uri uri, ContentValues values, String selection,
-			String[] selectionArgs) {
+					  String[] selectionArgs) {
 		// TODO Auto-generated method stub
 		return 0;
 	}
 
-    private String genHash(String input) throws NoSuchAlgorithmException {
-        MessageDigest sha1 = MessageDigest.getInstance("SHA-1");
-        byte[] sha1Hash = sha1.digest(input.getBytes());
-        Formatter formatter = new Formatter();
-        for (byte b : sha1Hash) {
-            formatter.format("%02x", b);
-        }
-        return formatter.toString();
-    }
+	private String genHash(String input) throws NoSuchAlgorithmException {
+		MessageDigest sha1 = MessageDigest.getInstance("SHA-1");
+		byte[] sha1Hash = sha1.digest(input.getBytes());
+		Formatter formatter = new Formatter();
+		for (byte b : sha1Hash) {
+			formatter.format("%02x", b);
+		}
+		return formatter.toString();
+	}
 	private ContentValues[] initTestValues() {
 		ContentValues[] cv = new ContentValues[TEST_CNT];
 		for (int i = 0; i < TEST_CNT; i++) {
@@ -698,7 +802,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 			this.socket = socket;
 		}
 		public void run(){
-			int []next = {0,0};
+
 			try {
 				ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
 				MsgToSend receivedMsg = (MsgToSend) objectInputStream.readObject();
@@ -711,6 +815,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 					contentValues.put(VALUE_FIELD, seperated[1]);
 					mContentValuesBase[count++] = contentValues;
 					Log.i("countInsert", receivedMsg.getMsg()+" "+count+" inserted");
+					int []next = {0,0};
 					for (int i = 0; i < 5; i++) {
 						if (avdNum[i].equals(selfAvdNum)) {
 							next[0] = (i + 1) % 5;
@@ -718,7 +823,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 						}
 					}
 					//send to the next and next of next node
-					for (int i = 0; i < 1; i++) {
+					for (int i = 0; i < 2; i++) {
 						Socket newSocket = null;
 						MsgToSend msgToSend = null;
 						if (i == 0) {
@@ -766,14 +871,15 @@ public class SimpleDynamoProvider extends ContentProvider {
 					contentValues.put(VALUE_FIELD, seperated[1]);
 					preContentValuesBase[precount++] = contentValues;
 					Log.i("countInsertofpreContent", receivedMsg.getMsg()+" "+count+" inserted");
+					int next=0;
 					for (int i = 0; i < 5; i++) {
 						if (avdNum[i].equals(selfAvdNum)) {
-							next[0] = (i + 1) % 5;
+							next = (i + 1) % 5;
 						}
 					}
 					Socket newSocket = null;
 					try {
-						newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next[0]]) * 2);
+						newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next]) * 2);
 						MsgToSend newmsgToSend = SetMsgToSend("PrePreAvdInsert", receivedMsg.getMsg(), null);
 						ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
 						newoutputStream.writeObject(newmsgToSend);
@@ -944,16 +1050,10 @@ public class SimpleDynamoProvider extends ContentProvider {
 					objectOutputStream.flush();
 
 				}else if (receivedMsg.getType().equals("DeleteAllFirstTrail") || receivedMsg.getType().equals("DeleteAllSecondTrail")) {
-					MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
-					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-					objectOutputStream.writeObject(msgToSend);
-					objectOutputStream.flush();
-					if (receivedMsg.getType().equals("DeleteAllFirstTrail")) {
-						count = 0;
-					} else if (receivedMsg.getType().equals("DeleteAllSecondTrail")) {
-						precount = 0;
-						count = 0;
-					}
+
+					count = 0;
+					precount = 0;
+					preprecount = 0;
 					if (!receivedMsg.getOriginal().equals(selfAvdNum)) {
 						//SendMsg(String.valueOf(Integer.valueOf(selfavd) * 2), String.valueOf(Integer.valueOf(successor) * 2), "DeleteAll",null, null,null,null,null);
 						boolean coordinatoralive = true;
@@ -1016,7 +1116,51 @@ public class SimpleDynamoProvider extends ContentProvider {
 							}
 						}
 					}
-				} else if (receivedMsg.getType().equals("DeleteOneFirstTrail") || receivedMsg.getType().equals("DeleteOneSecondTrail")) {
+					MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
+					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+					objectOutputStream.writeObject(msgToSend);
+					objectOutputStream.flush();
+
+				} else if(receivedMsg.getMsg().equals("DeletePre")||receivedMsg.getMsg().equals("DeletePrePre")){
+					if(receivedMsg.getMsg().equals("DeletePre")){
+						precount = 0;
+					}else if(receivedMsg.getMsg().equals("DeletePrePre")){
+						preprecount = 0;
+					}
+					MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
+					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+					objectOutputStream.writeObject(msgToSend);
+					objectOutputStream.flush();
+
+				} else if(receivedMsg.getType().equals("DeleteOneInPre")||receivedMsg.getType().equals("DeleteOneInPrePre")){
+					if(receivedMsg.getType().equals("DeleteOneInPre")){
+						for (int i = 0; i < precount; i++) {
+							if (preContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
+								for (int j = i; j < precount - 1; j++) {
+									preContentValuesBase[j] = preContentValuesBase[j + 1];
+								}
+								precount--;
+							}
+						}
+						MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
+						ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+						objectOutputStream.writeObject(msgToSend);
+						objectOutputStream.flush();
+					}else if(receivedMsg.getType().equals("DeleteOneInPrePre")){
+						for (int i = 0; i < preprecount; i++) {
+							if (prepreContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
+								for (int j = i; j < preprecount - 1; j++) {
+									prepreContentValuesBase[j] = prepreContentValuesBase[j + 1];
+								}
+								preprecount--;
+							}
+						}
+						MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
+						ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+						objectOutputStream.writeObject(msgToSend);
+						objectOutputStream.flush();
+					}
+				}else if (receivedMsg.getType().equals("DeleteOneFirstTrail") || receivedMsg.getType().equals("DeleteOneSecondTrail")) {
 					if (receivedMsg.getType().equals("DeleteOneFirstTrail")) {
 						for (int i = 0; i < count; i++) {
 							if (mContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
@@ -1026,15 +1170,100 @@ public class SimpleDynamoProvider extends ContentProvider {
 								count--;
 							}
 						}
+						//send to next and nextnext to delete this one
+						int[] next = {0, 0};
+						for (int i = 0; i < 5; i++) {
+							if (avdNum[i].equals(selfAvdNum)) {
+								next[0] = (i + 1) % 5;
+								next[1] = (next[0] + 1) % 5;
+								break;
+							}
+						}
+						//send to the next and next of next node
+						for (int i = 0; i < 2; i++) {
+							Socket newSocket = null;
+							MsgToSend msgToSend = null;
+							if (i == 0) {
+								msgToSend = SetMsgToSend("DeleteOneInPre", null, null);
+							} else
+								msgToSend = SetMsgToSend("DeleteOneInPrePre", null, null);
+							try {
+								newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next[i]]) * 2);
+								ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
+								Log.i("DeleteOneSendTo", avdNum[next[i]]);
+								newoutputStream.writeObject(msgToSend);
+								newoutputStream.flush();
+							} catch (UnknownHostException e) {
+								e.printStackTrace();
+							} catch (IOException e) {
+								e.printStackTrace();
+							}
+							try {
+								newSocket.setSoTimeout(2000);
+								ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
+								MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
+								if (receviedMsg.getType().equals("DeleteSucceed")) {
+									Log.i("DeleteOne", "Succeeds");
+								}
+								newSocket.close();
+							} catch (SocketException e) {
+								e.printStackTrace();
+								try {
+									Log.i("DeleteOneFailed", "because " + avdNum[next[i]] + " shot down");
+									newSocket.close();
+								} catch (IOException e2) {
+									e2.printStackTrace();
+								}
+							} catch (IOException e) {
+								e.printStackTrace();
+							} catch (ClassNotFoundException e) {
+								e.printStackTrace();
+							}
+						}
+						MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
+						ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+						objectOutputStream.writeObject(msgToSend);
+						objectOutputStream.flush();
+
 					} else if (receivedMsg.getType().equals("DeleteOneSecondTrail")) {
 						for (int i = 0; i < precount; i++) {
 							if (preContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
-								for (int j = i; j < count - 1; j++) {
+								for (int j = i; j < precount - 1; j++) {
 									preContentValuesBase[j] = preContentValuesBase[j + 1];
 								}
 								precount--;
 							}
 						}
+						int next=0;
+						for (int i = 0; i < 5; i++) {
+							if (avdNum[i].equals(selfAvdNum)) {
+								next = (i + 1) % 5;
+							}
+						}
+						Socket newSocket = null;
+						try {
+							newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next]) * 2);
+							MsgToSend newmsgToSend = SetMsgToSend("DeleteOneInPrePre", receivedMsg.getMsg(), null);
+							ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
+							newoutputStream.writeObject(newmsgToSend);
+							newoutputStream.flush();
+							ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
+							MsgToSend newreceivedMsg = (MsgToSend) newinputStream.readObject();
+							if (newreceivedMsg.getType().equals("DeleteSucceed")) {
+								Log.i("DeleteOne", "Succeeds");
+							}
+							newSocket.close();
+						} catch (SocketException e) {
+							e.printStackTrace();
+						} catch (IOException e) {
+							e.printStackTrace();
+						} catch (ClassNotFoundException e) {
+							e.printStackTrace();
+						}
+						MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
+						ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+						objectOutputStream.writeObject(msgToSend);
+						objectOutputStream.flush();
 					}
 				}
 			}catch (IOException e){
