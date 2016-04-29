@@ -62,7 +62,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 				e.printStackTrace();
 			}
 			try {
-				socket.setSoTimeout(200);
+				socket.setSoTimeout(2000);
 				ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
 				MsgToSend receviedMsg = (MsgToSend)inputStream.readObject();
 				if(receviedMsg.getType().equals("DeleteSucceed")){
@@ -148,7 +148,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 				e.printStackTrace();
 			}
 			try {
-				socket.setSoTimeout(200);
+				socket.setSoTimeout(2000);
 				ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
 				MsgToSend receviedMsg = (MsgToSend)inputStream.readObject();
 				if(receviedMsg.getType().equals("DeleteSucceed")){
@@ -226,65 +226,123 @@ public class SimpleDynamoProvider extends ContentProvider {
 		}catch (NoSuchAlgorithmException e){
 			e.printStackTrace();
 		}
-		try {
-			socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[des])*2);
-			MsgToSend msgToSend = SetMsgToSend("InsertFirstTrail", values.getAsString(KEY_FIELD)+"\n"+values.getAsString(VALUE_FIELD)+"\n",null);
-			ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
-			outputStream.writeObject(msgToSend);
-			outputStream.flush();
-		}catch (UnknownHostException e){
-				e.printStackTrace();
-		}catch (IOException e){
-				e.printStackTrace();
-		}
-		try {
-			socket.setSoTimeout(200);
-			ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-			MsgToSend receviedMsg = (MsgToSend)inputStream.readObject();
-			if(receviedMsg.getType().equals("InsertSucceed")){
-				Log.i("Insert","Succeeds");
+		if(avdNum[des].equals(selfAvdNum)){
+			mContentValuesBase[count++] = values;
+			//next pre
+			Log.i("RighthereInsert", values.getAsString(KEY_FIELD)+" "+values.getAsString(VALUE_FIELD)+" "+count+" inserted");
+			int [] next = {0,0};
+			for (int i = 0; i < 5; i++) {
+				if (avdNum[i].equals(selfAvdNum)) {
+					next[0] = (i + 1) % 5;
+					next[1] = (next[0] + 1) % 5;
+					break;
+				}
 			}
-			Log.i("InsertFirstTrial",receviedMsg.getMsg());
-			coordinatoralive = true;
-			socket.close();
-		}catch(SocketException e){
-			e.printStackTrace();
-			try{
-				coordinatoralive = false;
-				socket.close();
-			}catch (IOException e2){
-				e2.printStackTrace();
+			//send to the next and next of next node
+			for (int i = 0; i < 1; i++) {
+				Socket newSocket = null;
+				MsgToSend msgToSend = null;
+				if (i == 0) {
+					msgToSend = SetMsgToSend("PreAvdInsert", values.getAsString(KEY_FIELD)+"\n"+values.getAsString(VALUE_FIELD)+"\n", null);
+				} else
+					msgToSend = SetMsgToSend("PrePreAvdInsert", values.getAsString(KEY_FIELD)+"\n"+values.getAsString(VALUE_FIELD)+"\n", null);
+				try {
+					newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next[i]]) * 2);
+					ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
+					Log.i("sendto", values.getAsString(KEY_FIELD) + " and " + values.getAsString(VALUE_FIELD) + " send to " + avdNum[next[i]]);
+					newoutputStream.writeObject(msgToSend);
+					newoutputStream.flush();
+				} catch (UnknownHostException e) {
+					e.printStackTrace();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+				try {
+					newSocket.setSoTimeout(2000);
+					ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
+					MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
+					if (receviedMsg.getType().equals("InsertSucceed")) {
+						Log.i("Insert3", "Succeeds");
+					}
+					Log.i("InsertFromHereSucceeds", receviedMsg.getMsg());
+					newSocket.close();
+				} catch (SocketException e) {
+					e.printStackTrace();
+					try{
+						Log.i("InsertFailed","because "+avdNum[next[i]]+" shot down");
+						newSocket.close();
+					}catch (IOException e2){
+						e2.printStackTrace();
+					}
+				} catch (IOException e) {
+					e.printStackTrace();
+				} catch (ClassNotFoundException e) {
+					e.printStackTrace();
+				}
 			}
-		}catch (IOException e){
-			e.printStackTrace();
-		}catch (ClassNotFoundException e){
-			e.printStackTrace();
-		}
-
-		if(!coordinatoralive ) {
+			//after receiving the feedback from the next two nodes, the node could return the value.
+			//nextnext preand pre
+		}else {
 			try {
-				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(des + 1) % 5]) * 2);
-				MsgToSend msgToSend = SetMsgToSend("InsertSecondTrail", values.getAsString(KEY_FIELD)+"\n"+values.getAsString(VALUE_FIELD)+"\n",null);
+				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[des]) * 2);
+				Log.i("sendto", values.getAsString(KEY_FIELD) + " and " + values.getAsString(VALUE_FIELD) + " send to " + avdNum[des]);
+				MsgToSend msgToSend = SetMsgToSend("InsertFirstTrail", values.getAsString(KEY_FIELD) + "\n" + values.getAsString(VALUE_FIELD) + "\n", null);
 				ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
 				outputStream.writeObject(msgToSend);
 				outputStream.flush();
-
-				ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-				MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
-				if(receviedMsg.getType().equals("InsertSucceed")){
-					Log.i("Insert2","Succeed");
-				}
-				socket.close();
-				Log.i("InsertSecondTrial", receviedMsg.getMsg());
 			} catch (UnknownHostException e) {
 				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			try {
+				socket.setSoTimeout(2000);
+				ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
+				MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
+				if (receviedMsg.getType().equals("InsertSucceed")) {
+					Log.i("Insert", "Succeeds");
+				}
+				coordinatoralive = true;
+				socket.close();
+			} catch (SocketException e) {
+				e.printStackTrace();
+				try {
+					coordinatoralive = false;
+					socket.close();
+				} catch (IOException e2) {
+					e2.printStackTrace();
+				}
 			} catch (IOException e) {
 				e.printStackTrace();
 			} catch (ClassNotFoundException e) {
 				e.printStackTrace();
 			}
-		}
 
+			if (!coordinatoralive) {
+				try {
+					socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(des + 1) % 5]) * 2);
+					MsgToSend msgToSend = SetMsgToSend("InsertSecondTrail", values.getAsString(KEY_FIELD) + "\n" + values.getAsString(VALUE_FIELD) + "\n", null);
+					Log.i("sendto", values.getAsString(KEY_FIELD) + " and " + values.getAsString(VALUE_FIELD) + " send to " + avdNum[(des + 1) % 5]);
+					ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+					outputStream.writeObject(msgToSend);
+					outputStream.flush();
+
+					ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
+					MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
+					if (receviedMsg.getType().equals("InsertSucceed")) {
+						Log.i("Insert2", "Succeed");
+					}
+					socket.close();
+					//Log.i("InsertSecondTrial", receviedMsg.getMsg());
+				} catch (UnknownHostException e) {
+					e.printStackTrace();
+				} catch (IOException e) {
+					e.printStackTrace();
+				} catch (ClassNotFoundException e) {
+					e.printStackTrace();
+				}
+			}
+		}
 		return null;
 	}
 
@@ -350,7 +408,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 				e.printStackTrace();
 			}
 			try {
-				socket.setSoTimeout(200);
+				socket.setSoTimeout(2000);
 				ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
 				MsgToSend receviedMsg = (MsgToSend)inputStream.readObject();
 				if(receviedMsg.getType().equals("Iamalive")){
@@ -407,6 +465,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 			}
 		}else if(selection.equals("@")){
 			//including all the pre and prepre
+			Log.i("QueryLocal", "Starts");
 			for(int i=0; i<count; i++){
 				cs.addRow(new Object[]{mContentValuesBase[i].getAsString(KEY_FIELD), mContentValuesBase[i].getAsString(VALUE_FIELD)});
 			}
@@ -453,7 +512,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 				e.printStackTrace();
 			}
 			try {
-				socket.setSoTimeout(200);
+				socket.setSoTimeout(2000);
 				ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
 				MsgToSend receviedMsg = (MsgToSend)inputStream.readObject();
 				if(receviedMsg.getType().equals("Ifound")){
@@ -512,7 +571,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 			Log.v("matrixcursor is ", "null");
 		}
 
-		return null;
+		return cs;
 	}
 
 	@Override
@@ -555,7 +614,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 			Socket socket = null;
 			try {
 				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[pre]) * 2);
-				Log.i("port number pre","is "+ Integer.parseInt(avdNum[pre]) * 2);
+				//Log.i("port number pre","is "+ Integer.parseInt(avdNum[pre]) * 2);
 				MsgToSend msgToSend = SetMsgToSend("GiveMeYourmContent",null,selfAvdNum);
 				ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 				objectOutputStream.writeObject(msgToSend);
@@ -575,7 +634,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 
 			try {
 				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[prepre]) * 2);
-				Log.i("port number prepre","is "+ Integer.parseInt(avdNum[prepre]) * 2);
+				//Log.i("port number prepre","is "+ Integer.parseInt(avdNum[prepre]) * 2);
 				MsgToSend msgToSend = SetMsgToSend("GiveMeYourmContent",null,selfAvdNum);
 				ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 				objectOutputStream.writeObject(msgToSend);
@@ -595,7 +654,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 
 			try {
 				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[suc]) * 2);
-				Log.i("port number suc","is "+Integer.parseInt(avdNum[suc]) * 2);
+				//Log.i("port number suc","is "+Integer.parseInt(avdNum[suc]) * 2);
 				MsgToSend msgToSend = SetMsgToSend("GiveMeYourPre", null,selfAvdNum);
 				ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 				objectOutputStream.writeObject(msgToSend);
@@ -643,7 +702,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 			try {
 				ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
 				MsgToSend receivedMsg = (MsgToSend) objectInputStream.readObject();
-				Log.i("type and avd", receivedMsg.getOriginal()+receivedMsg.getType());
+				//Log.i("type and avd", receivedMsg.getMsg()+receivedMsg.getType());
 				if (receivedMsg.getType().equals("InsertFirstTrail")) {
 					//store the key into own contentValues, and pass it to the next two nodes
 					ContentValues contentValues = new ContentValues();
@@ -651,7 +710,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 					contentValues.put(KEY_FIELD, seperated[0]);
 					contentValues.put(VALUE_FIELD, seperated[1]);
 					mContentValuesBase[count++] = contentValues;
-
+					Log.i("countInsert", receivedMsg.getMsg()+" "+count+" inserted");
 					for (int i = 0; i < 5; i++) {
 						if (avdNum[i].equals(selfAvdNum)) {
 							next[0] = (i + 1) % 5;
@@ -671,19 +730,20 @@ public class SimpleDynamoProvider extends ContentProvider {
 							ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
 							newoutputStream.writeObject(msgToSend);
 							newoutputStream.flush();
+							Log.i("SendTheMsgTo", msgToSend.getMsg() + " to " + avdNum[next[i]]);
 						} catch (UnknownHostException e) {
 							e.printStackTrace();
 						} catch (IOException e) {
 							e.printStackTrace();
 						}
 						try {
-							newSocket.setSoTimeout(200);
+							newSocket.setSoTimeout(2000);
 							ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
 							MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
 							if (receviedMsg.getType().equals("InsertSucceed")) {
 								Log.i("Insert3", "Succeeds");
 							}
-							Log.i("SecondTrial", receviedMsg.getMsg());
+							Log.i("SendTheMsgToSucceed", msgToSend.getMsg() + " to " + avdNum[next[i]]);
 							newSocket.close();
 						} catch (SocketException e) {
 							e.printStackTrace();
@@ -705,6 +765,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 					contentValues.put(KEY_FIELD, seperated[0]);
 					contentValues.put(VALUE_FIELD, seperated[1]);
 					preContentValuesBase[precount++] = contentValues;
+					Log.i("countInsertofpreContent", receivedMsg.getMsg()+" "+count+" inserted");
 					for (int i = 0; i < 5; i++) {
 						if (avdNum[i].equals(selfAvdNum)) {
 							next[0] = (i + 1) % 5;
@@ -745,6 +806,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 					}else if(receivedMsg.getType().equals("PrePreAvdInsert")){
 						prepreContentValuesBase[preprecount++] = contentValues;
 					}
+					Log.i("pre&prepre countInsert", receivedMsg.getMsg()+" "+count+" inserted");
 					MsgToSend msgReturn = SetMsgToSend("InsertSucceed", receivedMsg.getMsg(), null);
 					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 					objectOutputStream.writeObject(msgReturn);
@@ -759,7 +821,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 					objectOutputStream.writeObject(msgToSend);
 					objectOutputStream.flush();
-					Log.i("GiveMePre&PrePre", "send out");
+					//Log.i("GiveMePre&PrePre", "send out");
 				} else if (receivedMsg.getType().equals("GiveMeYourPre")) {
 					String msg = "";
 					for (int i = 0; i < precount; i++) {
@@ -770,7 +832,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 					objectOutputStream.writeObject(msgToSend);
 					objectOutputStream.flush();
-					Log.i("GiveMeMine", "send out");
+					//Log.i("GiveMeMine", "send out");
 
 				} else if (receivedMsg.getType().equals("QueryAllFirstTrail") || receivedMsg.getType().equals("QueryAllSecondTrail")) {
 					//and return to the socket.output query succeeds
@@ -814,7 +876,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 							e.printStackTrace();
 						}
 						try {
-							newsocket.setSoTimeout(200);
+							newsocket.setSoTimeout(2000);
 							ObjectInputStream newinputStream = new ObjectInputStream(newsocket.getInputStream());
 							MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
 							if (receviedMsg.getType().equals("Iamalive")) {
@@ -910,7 +972,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 							e.printStackTrace();
 						}
 						try {
-							newsocket.setSoTimeout(200);
+							newsocket.setSoTimeout(2000);
 							ObjectInputStream newinputStream = new ObjectInputStream(newsocket.getInputStream());
 							MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
 							if (receviedMsg.getType().equals("DeleteSucceed")) {
