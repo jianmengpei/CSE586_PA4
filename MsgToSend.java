@@ -9,7 +9,7 @@ import java.io.Serializable;
 /**
  * Created by pjm on 4/7/16.
  */
-public class MsgToSend implements Serializable{
+public class MsgToSend implements java.io.Serializable{
 
     private String original = null;
     private String msg = null;
