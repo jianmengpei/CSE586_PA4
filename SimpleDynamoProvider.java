@@ -53,11 +53,14 @@ public class SimpleDynamoProvider extends ContentProvider {
 
 			//SendMsg(String.valueOf(Integer.valueOf(selfavd) * 2), String.valueOf(Integer.valueOf(successor) * 2), "DeleteAll",null, null,null,null,null);
 			boolean coordinatoralive = true;
-
-			count = 0;
-			precount = 0;
-			preprecount = 0;
-
+			writeLock.lock();
+			try{
+				count = 0;
+				precount = 0;
+				preprecount = 0;
+			}finally{
+				writeLock.unlock();
+			}
 			//send the msg to the next to delete all the contentValues
 			Socket socket = null;
 			try {
@@ -76,7 +79,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 				ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
 				MsgToSend receviedMsg = (MsgToSend)inputStream.readObject();
 				if(receviedMsg.getType().equals("DeleteSucceed")){
-					Log.i("DeleteFirst","Succeeds");
+					Log.i("DeleteAllFirstTrail","Succeeds");
 				}
 				coordinatoralive = true;
 				socket.close();
@@ -104,10 +107,10 @@ public class SimpleDynamoProvider extends ContentProvider {
 					ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
 					MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
 					if (receviedMsg.getType().equals("DeleteSucceed")) {
-						Log.i("Delete", "Succeed");
+						Log.i("DeleteAllSecondTrail", "Succeed");
 					}
 					socket.close();
-					Log.i("DeleteTrial", receviedMsg.getMsg());
+					Log.i("DeleteAllSecondTrail", receviedMsg.getMsg());
 				} catch (UnknownHostException e) {
 					e.printStackTrace();
 				} catch (IOException e) {
@@ -117,12 +120,14 @@ public class SimpleDynamoProvider extends ContentProvider {
 				}
 			}
 		}else if(selection.equals("@")){
-
+			writeLock.lock();
+			try {
 				count = 0;
 				precount = 0;
 				preprecount = 0;
-
-
+			}finally {
+				writeLock.unlock();
+			}
 			//suc and sucsucddelete
 			int [] next = {0,0};
 			for (int i = 0; i < 5; i++) {
@@ -189,7 +194,8 @@ public class SimpleDynamoProvider extends ContentProvider {
 				e.printStackTrace();
 			}
 			if (avdNum[des].equals(selfAvdNum)) {
-
+				writeLock.lock();
+				try {
 					for (int i = 0; i < count; i++) {
 						if (mContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)) {
 							for (int j = i; j < count - 1; j++) {
@@ -198,7 +204,9 @@ public class SimpleDynamoProvider extends ContentProvider {
 							count--;
 						}
 					}
-
+				}finally {
+					writeLock.unlock();
+				}
 				//send to next and nextnext to delete this one
 				int[] next = {0, 0};
 				for (int i = 0; i < 5; i++) {
@@ -344,9 +352,12 @@ public class SimpleDynamoProvider extends ContentProvider {
 			e.printStackTrace();
 		}
 		if(avdNum[des].equals(selfAvdNum)){
-
+			writeLock.lock();
+			try {
 				mContentValuesBase[count++] = values;
-
+			}finally {
+				writeLock.unlock();
+			}
 			//next pre
 			Log.i("RighthereInsert", values.getAsString(KEY_FIELD)+" "+values.getAsString(VALUE_FIELD)+" "+count+" inserted");
 			int [] next = {0,0};
@@ -505,7 +516,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 	public Cursor query(Uri uri, String[] projection, String selection,
 						String[] selectionArgs, String sortOrder) {
 		// TODO Auto-generated method stub
-		Log.i("slection",selection);
+		Log.i("Query",selection);
 		MatrixCursor cs = new MatrixCursor(matrix, 1);
 		queryoneresult = null;
 		queryallresult = null;
@@ -513,10 +524,14 @@ public class SimpleDynamoProvider extends ContentProvider {
 		if(selection.equals("*")){
 			boolean coordinatoralive = true;
 			String msg = "";
-			for(int i=0; i<count; i++){
-				msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) +"\n" + mContentValuesBase[i].getAsString(VALUE_FIELD)+"\n";
+			readLock.lock();
+			try {
+				for (int i = 0; i < count; i++) {
+					msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
+				}
+			}finally {
+				readLock.unlock();
 			}
-
 			//send the msg to the next to collect the contentvalues, and serverTask set a signal
 			Socket socket = null;
 			try {
@@ -576,11 +591,11 @@ public class SimpleDynamoProvider extends ContentProvider {
 				}
 			}
 
-			while(!queryall){
+				while(!queryall){
 
-			}
-			queryall = false;
-			String []seperated = queryallresult.split("\n");
+				}
+				queryall = false;
+				String []seperated = queryallresult.split("\n");
 
 
 				for (int i = 0; i < seperated.length; i += 2) {
@@ -592,7 +607,8 @@ public class SimpleDynamoProvider extends ContentProvider {
 			//including all the pre and prepre
 			Log.i("QueryLocal", "Starts");
 
-
+			readLock.lock();
+			try {
 				for (int i = 0; i < count; i++) {
 					cs.addRow(new Object[]{mContentValuesBase[i].getAsString(KEY_FIELD), mContentValuesBase[i].getAsString(VALUE_FIELD)});
 				}
@@ -602,11 +618,13 @@ public class SimpleDynamoProvider extends ContentProvider {
 				for (int i = 0; i < preprecount; i++) {
 					cs.addRow(new Object[]{prepreContentValuesBase[i].getAsString(KEY_FIELD), prepreContentValuesBase[i].getAsString(VALUE_FIELD)});
 				}
-
-
+			}finally {
+				readLock.unlock();
+			}
 		}else{
-			//Log.i("queryone","it starts");
-
+			//Log.i("QueryOne","Starts...");
+			readLock.lock();
+			try{
 				for(int i=0; i<count; i++){
 					if(mContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)){
 						cs.addRow(new Object[]{mContentValuesBase[i].getAsString(KEY_FIELD),mContentValuesBase[i].getAsString(VALUE_FIELD)});
@@ -621,33 +639,36 @@ public class SimpleDynamoProvider extends ContentProvider {
 						return cs;
 					}
 				}
-				for(int i=0; i<precount; i++){
+				for(int i=0; i<preprecount; i++){
 					if(prepreContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)){
 						cs.addRow(new Object[]{prepreContentValuesBase[i].getAsString(KEY_FIELD),prepreContentValuesBase[i].getAsString(VALUE_FIELD)});
 						Log.i("queryone1", prepreContentValuesBase[i].getAsString(KEY_FIELD) + " " + prepreContentValuesBase[i].getAsString(VALUE_FIELD));
 						return cs;
 					}
 				}
-
+			}finally {
+				readLock.unlock();
+			}
 			int des = 0;
 			try {
 				String selectionHash = genHash(selection);
-				for (int i = 0; i < 5; i++) {
-					if (avdHash[i].compareTo(selectionHash) < 0) continue;
-					else {
+				for(int i=0; i<5; i++){
+					if(avdHash[i].compareTo(selectionHash)>=0){
 						des = i;
 						break;
 					}
 				}
-				if (avdHash[4].compareTo(selectionHash) < 0) des = 0;
+				if(avdHash[4].compareTo(selectionHash)<0) des = 0;
 			}catch (NoSuchAlgorithmException e){
 				e.printStackTrace();
 			}
 			boolean coordinatoralive = true;
 			Socket socket = null;
+			//Log.i("QueryOne","Starts");
 			try {
 				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[des])*2);
 				MsgToSend msgToSend = SetMsgToSend("QueryOneFirstTrail", selection,null);
+				Log.i("QOFirstTrailST",avdNum[des]+" "+selection);
 				ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
 				outputStream.writeObject(msgToSend);
 				outputStream.flush();
@@ -671,6 +692,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 				e.printStackTrace();
 				try{
 					coordinatoralive = false;
+					Log.i("QueryOneFirstTrail","Failed");
 					socket.close();
 				}catch (IOException e2){
 					e2.printStackTrace();
@@ -685,6 +707,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 				try {
 					socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(des + 1) % 5]) * 2);
 					MsgToSend msgToSend = SetMsgToSend("QueryOneSecondTrail", selection,null);
+					Log.i("QOSecondTrailST",avdNum[des]+" "+selection);
 					ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
 					outputStream.writeObject(msgToSend);
 					outputStream.flush();
@@ -699,6 +722,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 				} catch (UnknownHostException e) {
 					e.printStackTrace();
 				} catch (IOException e) {
+					Log.i("QeuryOneSecondTrail","Failed");
 					e.printStackTrace();
 				} catch (ClassNotFoundException e) {
 					e.printStackTrace();
@@ -707,11 +731,11 @@ public class SimpleDynamoProvider extends ContentProvider {
 
 			String []seperated = queryoneresult.split("\n");
 
-				cs.addRow(new Object[]{seperated[0], seperated[1]});
+			cs.addRow(new Object[]{seperated[0], seperated[1]});
 
 			Log.i("queryone2", seperated[0] + " " + seperated[1]);
 		}
-
+		Log.i("QueryOne","Ends");
 		//cs.addRow(new Object[]{keyresult, valueresult});
 		if(cs == null)
 		{
@@ -769,10 +793,12 @@ public class SimpleDynamoProvider extends ContentProvider {
 
 				ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
 				MsgToSend receivedMsg = (MsgToSend)objectInputStream.readObject();
-
+				writeLock.lock();
+				try{
 					preContentValuesBase = SetContent(receivedMsg.getMsg());
-
-
+				}finally {
+					writeLock.unlock();
+				}
 				socket.close();
 			}catch (UnknownHostException e){
 				e.printStackTrace();
@@ -792,9 +818,12 @@ public class SimpleDynamoProvider extends ContentProvider {
 
 				ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
 				MsgToSend receivedMsg = (MsgToSend)objectInputStream.readObject();
-
+				writeLock.lock();
+				try {
 					prepreContentValuesBase = SetContent(receivedMsg.getMsg());
-
+				}finally {
+					writeLock.unlock();
+				}
 				socket.close();
 			}catch (UnknownHostException e){
 				e.printStackTrace();
@@ -814,9 +843,12 @@ public class SimpleDynamoProvider extends ContentProvider {
 
 				ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
 				MsgToSend receivedMsg = (MsgToSend)objectInputStream.readObject();
-
+				writeLock.lock();
+				try {
 					mContentValuesBase = SetContent(receivedMsg.getMsg());
-
+				}finally {
+					writeLock.unlock();
+				}
 				socket.close();
 			}catch (UnknownHostException e){
 				e.printStackTrace();
@@ -863,10 +895,14 @@ public class SimpleDynamoProvider extends ContentProvider {
 					String []seperated = receivedMsg.getMsg().split("\n");
 					contentValues.put(KEY_FIELD, seperated[0]);
 					contentValues.put(VALUE_FIELD, seperated[1]);
-
+					writeLock.lock();
+					try {
 						mContentValuesBase[count++] = contentValues;
+						Log.i("countInsert", receivedMsg.getMsg()+" "+(count-1)+" inserted");
+					}finally {
+						writeLock.unlock();
+					}
 
-					Log.i("countInsert", receivedMsg.getMsg()+" "+count+" inserted");
 					int []next = {0,0};
 					for (int i = 0; i < 5; i++) {
 						if (avdNum[i].equals(selfAvdNum)) {
@@ -921,9 +957,12 @@ public class SimpleDynamoProvider extends ContentProvider {
 					String []seperated = receivedMsg.getMsg().split("\n");
 					contentValues.put(KEY_FIELD, seperated[0]);
 					contentValues.put(VALUE_FIELD, seperated[1]);
-
+					writeLock.lock();
+					try {
 						preContentValuesBase[precount++] = contentValues;
-
+					}finally {
+						writeLock.unlock();
+					}
 					Log.i("countInsertofpreContent", receivedMsg.getMsg()+" "+count+" inserted");
 					int next=0;
 					for (int i = 0; i < 5; i++) {
@@ -961,13 +1000,16 @@ public class SimpleDynamoProvider extends ContentProvider {
 					String []seperated = receivedMsg.getMsg().split("\n");
 					contentValues.put(KEY_FIELD, seperated[0]);
 					contentValues.put(VALUE_FIELD, seperated[1]);
-
+					writeLock.lock();
+					try {
 						if (receivedMsg.getType().equals("PreAvdInsert")) {
 							preContentValuesBase[precount++] = contentValues;
 						} else if (receivedMsg.getType().equals("PrePreAvdInsert")) {
 							prepreContentValuesBase[preprecount++] = contentValues;
 						}
-
+					}finally {
+						writeLock.unlock();
+					}
 					Log.i("pre&prepre countInsert", receivedMsg.getMsg()+" "+count+" inserted");
 					MsgToSend msgReturn = SetMsgToSend("InsertSucceed", receivedMsg.getMsg(), null);
 					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
@@ -976,8 +1018,13 @@ public class SimpleDynamoProvider extends ContentProvider {
 
 				} else if (receivedMsg.getType().equals("GiveMeYourmContent")) {
 					String msg = "";
-					for (int i = 0; i < count; i++) {
-						msg=msg+  mContentValuesBase[i].getAsString(KEY_FIELD)+"\n"+mContentValuesBase[i].getAsString(VALUE_FIELD)+"\n";
+					readLock.lock();
+					try {
+						for (int i = 0; i < count; i++) {
+							msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
+						}
+					}finally {
+						readLock.unlock();
 					}
 					MsgToSend msgToSend = SetMsgToSend(null,msg, null);
 					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
@@ -986,10 +1033,14 @@ public class SimpleDynamoProvider extends ContentProvider {
 					//Log.i("GiveMePre&PrePre", "send out");
 				} else if (receivedMsg.getType().equals("GiveMeYourPre")) {
 					String msg = "";
-					for (int i = 0; i < precount; i++) {
-						msg+=  preContentValuesBase[i].getAsString(KEY_FIELD)+"\n"+preContentValuesBase[i].getAsString(VALUE_FIELD)+"\n";
+					readLock.lock();
+					try {
+						for (int i = 0; i < precount; i++) {
+							msg += preContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + preContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
+						}
+					}finally {
+						readLock.unlock();
 					}
-
 					MsgToSend msgToSend = SetMsgToSend(null, msg, null);
 					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 					objectOutputStream.writeObject(msgToSend);
@@ -1002,27 +1053,28 @@ public class SimpleDynamoProvider extends ContentProvider {
 					//put mContentValues into the msg
 					//and pass it to the next nodes
 					//if next nodes fails, the pass it to the nextnext nodes
-					MsgToSend msgToSend = SetMsgToSend("Iamalive", null, null);
-					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-					objectOutputStream.writeObject(msgToSend);
-					objectOutputStream.flush();
 
 					if (receivedMsg.getOriginal().equals(selfAvdNum)) {
 						queryall = true;
 						queryallresult = receivedMsg.getMsg();
 					} else {
 						String msg = receivedMsg.getMsg();
-						if (receivedMsg.getType().equals("QueryAllFirstTrail")) {
-							for (int i = 0; i < count; i++) {
-								msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
+						readLock.lock();
+						try {
+							if (receivedMsg.getType().equals("QueryAllFirstTrail")) {
+								for (int i = 0; i < count; i++) {
+									msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
+								}
+							} else if (receivedMsg.getType().equals("QueryAllSecondTrail")) {
+								for (int i = 0; i < precount; i++) {
+									msg = msg + preContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + preContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
+								}
+								for (int i = 0; i < count; i++) {
+									msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
+								}
 							}
-						} else if (receivedMsg.getType().equals("QueryAllSecondTrail")) {
-							for (int i = 0; i < precount; i++) {
-								msg = msg + preContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + preContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
-							}
-							for (int i = 0; i < count; i++) {
-								msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
-							}
+						}finally {
+							readLock.unlock();
 						}
 						boolean coordinatoralive = true;
 						Socket newsocket = null;
@@ -1083,34 +1135,49 @@ public class SimpleDynamoProvider extends ContentProvider {
 							}
 						}
 					}
+					MsgToSend msgToSend = SetMsgToSend("Iamalive", null, null);
+					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+					objectOutputStream.writeObject(msgToSend);
+					objectOutputStream.flush();
 				} else if(receivedMsg.getType().equals("QueryOneFirstTrail")||receivedMsg.getType().equals("QueryOneSecondTrail")){
 					String selection = receivedMsg.getMsg();
 					MsgToSend msgToSend = new MsgToSend();
-					if(receivedMsg.getType().equals("QueryOneFirstTrail")){
-						for(int i=0; i<count;i++){
-							if(mContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)){
-								msgToSend = SetMsgToSend("Ifound",mContentValuesBase[i].getAsString(KEY_FIELD)+"\n"+mContentValuesBase[i].getAsString(VALUE_FIELD)+"\n",null);
-								break;
+
+					readLock.lock();
+					try {
+						if (receivedMsg.getType().equals("QueryOneFirstTrail")) {
+							Log.i("QueryOneFirstTrail", selfAvdNum+" has received"+selection);
+							for (int i = 0; i < count; i++) {
+								if (mContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)) {
+									msgToSend = SetMsgToSend("Ifound", mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n", null);
+									break;
+								}
+							}
+						} else if (receivedMsg.getType().equals("QueryOneSecondTrail")) {
+							Log.i("QueryOneSecondTrail", selfAvdNum+" has received"+selection);
+							for (int i = 0; i < precount; i++) {
+								if (preContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)) {
+									msgToSend = SetMsgToSend("Ifound", preContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + preContentValuesBase[i].getAsString(VALUE_FIELD) + "\n", null);
+									break;
+								}
 							}
 						}
-					}else if(receivedMsg.getType().equals("QueryOneSecondTrail")){
-						for(int i=0; i<precount;i++){
-							if(preContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)){
-								msgToSend = SetMsgToSend("Ifound",preContentValuesBase[i].getAsString(KEY_FIELD)+"\n"+preContentValuesBase[i].getAsString(VALUE_FIELD)+"\n",null);
-								break;
-							}
-						}
+					}finally {
+						readLock.unlock();
 					}
 					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 					objectOutputStream.writeObject(msgToSend);
 					objectOutputStream.flush();
 
 				}else if (receivedMsg.getType().equals("DeleteAllFirstTrail") || receivedMsg.getType().equals("DeleteAllSecondTrail")) {
-
+					writeLock.lock();
+					try {
 						count = 0;
 						precount = 0;
 						preprecount = 0;
-
+					}finally {
+						writeLock.unlock();
+					}
 					if (!receivedMsg.getOriginal().equals(selfAvdNum)) {
 						//SendMsg(String.valueOf(Integer.valueOf(selfavd) * 2), String.valueOf(Integer.valueOf(successor) * 2), "DeleteAll",null, null,null,null,null);
 						boolean coordinatoralive = true;
@@ -1179,13 +1246,16 @@ public class SimpleDynamoProvider extends ContentProvider {
 					objectOutputStream.flush();
 
 				} else if(receivedMsg.getMsg().equals("DeletePre")||receivedMsg.getMsg().equals("DeletePrePre")){
-
+					writeLock.lock();
+					try {
 						if (receivedMsg.getMsg().equals("DeletePre")) {
 							precount = 0;
 						} else if (receivedMsg.getMsg().equals("DeletePrePre")) {
 							preprecount = 0;
 						}
-
+					}finally {
+						writeLock.unlock();
+					}
 					MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
 					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 					objectOutputStream.writeObject(msgToSend);
@@ -1193,7 +1263,8 @@ public class SimpleDynamoProvider extends ContentProvider {
 
 				} else if(receivedMsg.getType().equals("DeleteOneInPre")||receivedMsg.getType().equals("DeleteOneInPrePre")){
 					if(receivedMsg.getType().equals("DeleteOneInPre")){
-
+						writeLock.lock();
+						try {
 							for (int i = 0; i < precount; i++) {
 								if (preContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
 									for (int j = i; j < precount - 1; j++) {
@@ -1202,13 +1273,16 @@ public class SimpleDynamoProvider extends ContentProvider {
 									precount--;
 								}
 							}
-
+						}finally {
+							writeLock.unlock();
+						}
 						MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
 						ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 						objectOutputStream.writeObject(msgToSend);
 						objectOutputStream.flush();
 					}else if(receivedMsg.getType().equals("DeleteOneInPrePre")){
-
+						writeLock.lock();
+						try {
 							for (int i = 0; i < preprecount; i++) {
 								if (prepreContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
 									for (int j = i; j < preprecount - 1; j++) {
@@ -1217,7 +1291,9 @@ public class SimpleDynamoProvider extends ContentProvider {
 									preprecount--;
 								}
 							}
-
+						}finally {
+							writeLock.unlock();
+						}
 						MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
 						ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 						objectOutputStream.writeObject(msgToSend);
@@ -1225,7 +1301,8 @@ public class SimpleDynamoProvider extends ContentProvider {
 					}
 				}else if (receivedMsg.getType().equals("DeleteOneFirstTrail") || receivedMsg.getType().equals("DeleteOneSecondTrail")) {
 					if (receivedMsg.getType().equals("DeleteOneFirstTrail")) {
-
+						writeLock.lock();
+						try {
 							for (int i = 0; i < count; i++) {
 								if (mContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
 									for (int j = i; j < count - 1; j++) {
@@ -1234,7 +1311,9 @@ public class SimpleDynamoProvider extends ContentProvider {
 									count--;
 								}
 							}
-
+						}finally {
+							writeLock.unlock();
+						}
 						//send to next and nextnext to delete this one
 						int[] next = {0, 0};
 						for (int i = 0; i < 5; i++) {
@@ -1291,7 +1370,8 @@ public class SimpleDynamoProvider extends ContentProvider {
 						objectOutputStream.flush();
 
 					} else if (receivedMsg.getType().equals("DeleteOneSecondTrail")) {
-
+						writeLock.lock();
+						try {
 							for (int i = 0; i < precount; i++) {
 								if (preContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
 									for (int j = i; j < precount - 1; j++) {
@@ -1300,7 +1380,9 @@ public class SimpleDynamoProvider extends ContentProvider {
 									precount--;
 								}
 							}
-
+						}finally {
+							writeLock.unlock();
+						}
 						int next=0;
 						for (int i = 0; i < 5; i++) {
 							if (avdNum[i].equals(selfAvdNum)) {
