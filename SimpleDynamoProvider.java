@@ -51,274 +51,31 @@ public class SimpleDynamoProvider extends ContentProvider {
 		// TODO Auto-generated method stub
 		Log.i("delete",selection);
 		if(selection.equals("*")){
-
-			//SendMsg(String.valueOf(Integer.valueOf(selfavd) * 2), String.valueOf(Integer.valueOf(successor) * 2), "DeleteAll",null, null,null,null,null);
-			boolean coordinatoralive = true;
-			writeLock.lock();
-			try{
-				count = 0;
-				precount = 0;
-				preprecount = 0;
-			}finally{
-				writeLock.unlock();
-			}
-			//send the msg to the next to delete all the contentValues
-			Socket socket = null;
-			try {
-				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[suc]) * 2);
-				MsgToSend msgToSend = SetMsgToSend("DeleteAllFirstTrail",null,selfAvdNum);
-				ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-				objectOutputStream.writeObject(msgToSend);
-				objectOutputStream.flush();
-			}catch (UnknownHostException e){
-				e.printStackTrace();
-			}catch (IOException e){
-				e.printStackTrace();
-			}
-			try {
-				socket.setSoTimeout(readtimeout);
-				ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-				MsgToSend receviedMsg = (MsgToSend)inputStream.readObject();
-				if(receviedMsg.getType().equals("DeleteSucceed")){
-					Log.i("DeleteAllFirstTrail","Succeeds");
+			for(int i=0; i<5; i++){
+				if(avdNum[i].equals(selfAvdNum)){
+					DeleteCon(3,null);
+					continue;
 				}
-				coordinatoralive = true;
-				socket.close();
-			}catch(SocketException e){
-				e.printStackTrace();
-				try{
-					coordinatoralive = false;
-					socket.close();
-				}catch (IOException e2){
-					e2.printStackTrace();
-				}
-			}catch (IOException e){
-				e.printStackTrace();
-			}catch (ClassNotFoundException e){
-				e.printStackTrace();
-			}
-			if(!coordinatoralive ) {
-				try {
-					socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(suc + 1) % 5]) * 2);
-					MsgToSend msgToSend = SetMsgToSend("DeleteAllSecondTrail", null, selfAvdNum);
-					ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
-					outputStream.writeObject(msgToSend);
-					outputStream.flush();
-
-					ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-					MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
-					if (receviedMsg.getType().equals("DeleteSucceed")) {
-						Log.i("DeleteAllSecondTrail", "Succeed");
-					}
-					socket.close();
-					Log.i("DeleteAllSecondTrail", receviedMsg.getMsg());
-				} catch (UnknownHostException e) {
-					e.printStackTrace();
-				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (ClassNotFoundException e) {
-					e.printStackTrace();
-				}
+				SendDeleteto(avdNum[i],3,null);
 			}
 		}else if(selection.equals("@")){
-			writeLock.lock();
-			try {
-				count = 0;
-				precount = 0;
-				preprecount = 0;
-			}finally {
-				writeLock.unlock();
-			}
-			//suc and sucsucddelete
-			int [] next = {0,0};
 			for (int i = 0; i < 5; i++) {
 				if (avdNum[i].equals(selfAvdNum)) {
-					next[0] = (i + 1) % 5;
-					next[1] = (next[0] + 1) % 5;
+					DeleteCon(3,null);
+					SendDeleteto(avdNum[(i+1)%5],4, null);
+					SendDeleteto(avdNum[(i+2)%5],5, null);
 					break;
 				}
 			}
-			//send to the next and next of next node
-			for (int i = 0; i < 2; i++) {
-				Socket newSocket = null;
-				MsgToSend msgToSend = null;
-				if (i == 0) {
-					msgToSend = SetMsgToSend("DeletePre", null, null);
-				} else
-					msgToSend = SetMsgToSend("DeletePrePre", null, null);
-				try {
-					newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next[i]]) * 2);
-					ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
-					Log.i("DeleteMyLocalsendto", avdNum[next[i]]);
-					newoutputStream.writeObject(msgToSend);
-					newoutputStream.flush();
-				} catch (UnknownHostException e) {
-					e.printStackTrace();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-				try {
-					newSocket.setSoTimeout(readtimeout);
-					ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
-					MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
-					if (receviedMsg.getType().equals("DeleteSucceed")) {
-						Log.i("DeleteLocal", "Succeeds");
-					}
-					newSocket.close();
-				} catch (SocketException e) {
-					e.printStackTrace();
-					try{
-						Log.i("DeleteLocalFailed","because "+avdNum[next[i]]+" shot down");
-						newSocket.close();
-					}catch (IOException e2){
-						e2.printStackTrace();
-					}
-				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (ClassNotFoundException e) {
-					e.printStackTrace();
-				}
-			}
 		}else {
-			int des = 0;
-			try {
-				String selectionHash = genHash(selection);
-				for (int i = 0; i < 5; i++) {
-					if (avdHash[i].compareTo(selectionHash) < 0) continue;
-					else {
-						des = i;
-						break;
-					}
+			int des = FindDes(selection);
+			String []sendto = {avdNum[des],avdNum[(des+1)%5],avdNum[(des+2)%5]};
+			for(int i=0; i<3; i++){
+				if(sendto[i].equals(selfAvdNum)){
+					DeleteCon(i+6,selection);
+					continue;
 				}
-				if (avdHash[4].compareTo(selectionHash) < 0) des = 0;
-			} catch (NoSuchAlgorithmException e) {
-				e.printStackTrace();
-			}
-			if (avdNum[des].equals(selfAvdNum)) {
-				writeLock.lock();
-				try {
-					for (int i = 0; i < count; i++) {
-						if (mContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)) {
-							for (int j = i; j < count - 1; j++) {
-								mContentValuesBase[j] = mContentValuesBase[j + 1];
-							}
-							count--;
-						}
-					}
-				}finally {
-					writeLock.unlock();
-				}
-				//send to next and nextnext to delete this one
-				int[] next = {0, 0};
-				for (int i = 0; i < 5; i++) {
-					if (avdNum[i].equals(selfAvdNum)) {
-						next[0] = (i + 1) % 5;
-						next[1] = (next[0] + 1) % 5;
-						break;
-					}
-				}
-				//send to the next and next of next node
-				for (int i = 0; i < 2; i++) {
-					Socket newSocket = null;
-					MsgToSend msgToSend = null;
-					if (i == 0) {
-						msgToSend = SetMsgToSend("DeleteOneInPre", null, null);
-					} else
-						msgToSend = SetMsgToSend("DeleteOneInPrePre", null, null);
-					try {
-						newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next[i]]) * 2);
-						ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
-						Log.i("DeleteOneSendTo", avdNum[next[i]]);
-						newoutputStream.writeObject(msgToSend);
-						newoutputStream.flush();
-					} catch (UnknownHostException e) {
-						e.printStackTrace();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-					try {
-						newSocket.setSoTimeout(readtimeout);
-						ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
-						MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
-						if (receviedMsg.getType().equals("DeleteSucceed")) {
-							Log.i("DeleteOne", "Succeeds");
-						}
-						newSocket.close();
-					} catch (SocketException e) {
-						e.printStackTrace();
-						try {
-							Log.i("DeleteOneFailed", "because " + avdNum[next[i]] + " shot down");
-							newSocket.close();
-						} catch (IOException e2) {
-							e2.printStackTrace();
-						}
-					} catch (IOException e) {
-						e.printStackTrace();
-					} catch (ClassNotFoundException e) {
-						e.printStackTrace();
-					}
-				}
-			} else {
-				boolean coordinatoralive = true;
-				Socket socket = null;
-				try {
-					socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[des]) * 2);
-					MsgToSend msgToSend = SetMsgToSend("DeleteOneFirstTrail", selection, null);
-					ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
-					outputStream.writeObject(msgToSend);
-					outputStream.flush();
-				} catch (UnknownHostException e) {
-					e.printStackTrace();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-				try {
-					socket.setSoTimeout(readtimeout);
-					ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-					MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
-					if (receviedMsg.getType().equals("DeleteSucceed")) {
-						Log.i("Delete", "Succeeds");
-					}
-					coordinatoralive = true;
-					socket.close();
-				} catch (SocketException e) {
-					e.printStackTrace();
-					try {
-						coordinatoralive = false;
-						socket.close();
-					} catch (IOException e2) {
-						e2.printStackTrace();
-					}
-				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (ClassNotFoundException e) {
-					e.printStackTrace();
-				}
-
-				if (!coordinatoralive) {
-					try {
-						socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(des + 1) % 5]) * 2);
-						MsgToSend msgToSend = SetMsgToSend("DeleteOneSecondTrail", selection, null);
-						ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
-						outputStream.writeObject(msgToSend);
-						outputStream.flush();
-
-						ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-						MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
-						if (receviedMsg.getType().equals("DeleteOneSucceed")) {
-							Log.i("DeleteOne", "Succeed");
-						}
-						socket.close();
-					} catch (UnknownHostException e) {
-						e.printStackTrace();
-					} catch (IOException e) {
-						e.printStackTrace();
-					} catch (ClassNotFoundException e) {
-						e.printStackTrace();
-					}
-				}
-
-				//SendMsg(String.valueOf(Integer.valueOf(selfavd) * 2), String.valueOf(Integer.valueOf(successor) * 2), "DeleteOne",selection, null,null,null,null);
+				SendDeleteto(sendto[i],i+6, selection);
 			}
 		}
 		return 0;
@@ -334,11 +91,52 @@ public class SimpleDynamoProvider extends ContentProvider {
 	public Uri insert(Uri uri, ContentValues values) {
 		// TODO Auto-generated method stub
 		//1, genHash of the key of the values, and send it to the appropiate nodes if not owns
+		int des = FindDes(values.getAsString(KEY_FIELD));
+
+		String []sendto = {avdNum[des],avdNum[(des+1)%5],avdNum[(des+2)%5]};
+		for(int i=0; i<3; i++){
+			if(sendto[i].equals(selfAvdNum)){
+				InsertToCon(i,values);
+				continue;
+			}
+			SendConto(sendto[i], i, values);
+		}
+		return null;
+	}
+	public void SendConto(String des, int type, ContentValues values){
+		try {
+			Socket socket= new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(des) * 2);
+			ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+			MsgToSend msgToSend = SetMsgToSend(type, values.getAsString(KEY_FIELD)+"\n"+values.getAsString(VALUE_FIELD)+"\n",selfAvdNum);
+			Log.i("sendto", values.getAsString(KEY_FIELD) + " and " + values.getAsString(VALUE_FIELD) + " send to " + des);
+			outputStream.writeObject(msgToSend);
+			outputStream.flush();
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return ;
+	}
+	public void SendDeleteto(String des, int type, String selection){
+		try {
+			Socket socket= new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(des) * 2);
+			ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+			MsgToSend msgToSend = SetMsgToSend(type, selection,selfAvdNum);
+			Log.i("DeleteSendto",  selection + " send to " + des);
+			outputStream.writeObject(msgToSend);
+			outputStream.flush();
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return ;
+	}
+	public int FindDes(String string){
 		int des = 0;
-		Socket socket=null;
-		boolean coordinatoralive = true;
 		try{
-			String conKeyHash = genHash(values.getAsString(KEY_FIELD));
+			String conKeyHash = genHash(string);
 			for(int i=0; i<5; i++){
 				if(avdHash[i].compareTo(conKeyHash)>=0){
 					des = i;
@@ -346,137 +144,108 @@ public class SimpleDynamoProvider extends ContentProvider {
 				}
 			}
 			if(avdHash[4].compareTo(conKeyHash)<0) des = 0;
-			//build the socket and send the values to the nodes
-			//If the message is sent successfully, wait for the response
-			//else, find the next node to send
 		}catch (NoSuchAlgorithmException e){
 			e.printStackTrace();
 		}
-		if(avdNum[des].equals(selfAvdNum)){
-			writeLock.lock();
-			try {
-				mContentValuesBase[count++] = values;
-				Log.i("mContentInsert", values.getAsString(KEY_FIELD)+" "+values.getAsString(VALUE_FIELD)+" "+(count-1)+" inserted");
-			}finally {
-				writeLock.unlock();
-			}
-			//next pre
-
-			int [] next = {0,0};
-			for (int i = 0; i < 5; i++) {
-				if (avdNum[i].equals(selfAvdNum)) {
-					next[0] = (i + 1) % 5;
-					next[1] = (next[0] + 1) % 5;
-					break;
-				}
-			}
-			//send to the next and next of next node
-			for (int i = 0; i < 2; i++) {
-				Socket newSocket = null;
-				MsgToSend msgToSend = null;
-				if (i == 0) {
-					msgToSend = SetMsgToSend("PreAvdInsert", values.getAsString(KEY_FIELD)+"\n"+values.getAsString(VALUE_FIELD)+"\n", null);
-				} else
-					msgToSend = SetMsgToSend("PrePreAvdInsert", values.getAsString(KEY_FIELD)+"\n"+values.getAsString(VALUE_FIELD)+"\n", null);
-				try {
-					newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next[i]]) * 2);
-					ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
-					Log.i("sendto", values.getAsString(KEY_FIELD) + " and " + values.getAsString(VALUE_FIELD) + " send to " + avdNum[next[i]]);
-					newoutputStream.writeObject(msgToSend);
-					newoutputStream.flush();
-				} catch (UnknownHostException e) {
-					e.printStackTrace();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-				try {
-					newSocket.setSoTimeout(readtimeout);
-					ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
-					MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
-					if (receviedMsg.getType().equals("InsertSucceed")) {
-						Log.i("InsertFromHere", " to " + avdNum[next[i]]);
-					}
-					newSocket.close();
-				} catch (SocketException e) {
-					e.printStackTrace();
-					try{
-						Log.i("InsertFailed","because "+avdNum[next[i]]+" shot down");
-						newSocket.close();
-					}catch (IOException e2){
-						e2.printStackTrace();
-					}
-				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (ClassNotFoundException e) {
-					e.printStackTrace();
-				}
-			}
-			//after receiving the feedback from the next two nodes, the node could return the value.
-			//nextnext preand pre
-		}else {
-			try {
-				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[des]) * 2);
-				Log.i("sendto", values.getAsString(KEY_FIELD) + " and " + values.getAsString(VALUE_FIELD) + " send to " + avdNum[des]);
-				MsgToSend msgToSend = SetMsgToSend("InsertFirstTrail", values.getAsString(KEY_FIELD) + "\n" + values.getAsString(VALUE_FIELD) + "\n", null);
-				ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
-				outputStream.writeObject(msgToSend);
-				outputStream.flush();
-			} catch (UnknownHostException e) {
-				e.printStackTrace();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-			try {
-				socket.setSoTimeout(readtimeout);
-				ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-				MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
-				if (receviedMsg.getType().equals("InsertSucceed")) {
-					Log.i("InsertRequestSend", "to "+avdNum[des]+"Succeeds");
-				}
-				coordinatoralive = true;
-				socket.close();
-			} catch (SocketException e) {
-				e.printStackTrace();
-				try {
-					coordinatoralive = false;
-					socket.close();
-				} catch (IOException e2) {
-					e2.printStackTrace();
-				}
-			} catch (IOException e) {
-				e.printStackTrace();
-			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
-			}
-
-			if (!coordinatoralive) {
-				try {
-					socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(des + 1) % 5]) * 2);
-					MsgToSend msgToSend = SetMsgToSend("InsertSecondTrail", values.getAsString(KEY_FIELD) + "\n" + values.getAsString(VALUE_FIELD) + "\n", null);
-					Log.i("sendto", values.getAsString(KEY_FIELD) + " and " + values.getAsString(VALUE_FIELD) + " send to " + avdNum[(des + 1) % 5]);
-					ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
-					outputStream.writeObject(msgToSend);
-					outputStream.flush();
-
-					ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-					MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
-					if (receviedMsg.getType().equals("InsertSucceed")) {
-						Log.i("InsertRequestSend", "to "+avdNum[(des + 1) % 5]+"Succeeds");
-					}
-					socket.close();
-					//Log.i("InsertSecondTrial", receviedMsg.getMsg());
-				} catch (UnknownHostException e) {
-					e.printStackTrace();
-				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (ClassNotFoundException e) {
-					e.printStackTrace();
-				}
-			}
-		}
-		return null;
+		return des;
 	}
-
+	public void InsertToCon(int i, ContentValues values){
+		writeLock.lock();
+		try {
+			if (i == 0) {
+				mContentValuesBase[count++] = values;
+				Log.i("mContentInsert", values.getAsString(KEY_FIELD) + " " + values.getAsString(VALUE_FIELD) + " " + (count - 1) + " inserted");
+			} else if (i == 1) {
+				preContentValuesBase[precount++] = values;
+				Log.i("preContentInsert", values.getAsString(KEY_FIELD) + " " + values.getAsString(VALUE_FIELD) + " " + (precount - 1) + " inserted");
+			} else if (i == 2) {
+				prepreContentValuesBase[preprecount++] = values;
+				Log.i("prepreContentInsert", values.getAsString(KEY_FIELD) + " " + values.getAsString(VALUE_FIELD) + " " + (preprecount - 1) + " inserted");
+			}
+		} finally {
+			writeLock.unlock();
+		}
+		return ;
+	}
+	public void DeleteCon(int type, String key){
+		writeLock.lock();
+		try {
+			switch (type){
+				case 3: //delete all
+					writeLock.lock();
+					try {
+						count = 0;
+						precount = 0;
+						preprecount = 0;
+					}finally {
+						writeLock.unlock();
+					}
+					Log.i("AllMyDeletedm", "Succeeds");
+					break;
+				case 4://delete preContent
+					writeLock.lock();
+					try {
+						precount = 0;
+					}finally {
+						writeLock.unlock();
+					}
+					Log.i("AllMyDeletedPre", "Succeeds");
+					break;
+				case 5://delete prepreContent
+					writeLock.lock();
+					try {
+						preprecount = 0;
+					}finally {
+						writeLock.unlock();
+					}
+					Log.i("AllMyDeletedPrePre", "Succeeds");
+					break;
+				case 6:
+					//delete key in mContent
+					for (int i = 0; i < count; i++) {
+						if (mContentValuesBase[i].getAsString(KEY_FIELD).equals(key)) {
+							for (int j = i; j < count - 1; j++) {
+								mContentValuesBase[j] = mContentValuesBase[j + 1];
+							}
+							count--;
+						}
+					}
+					break;
+				case 7:
+					//delete key in preContent
+					for (int i = 0; i < precount; i++) {
+						if (preContentValuesBase[i].getAsString(KEY_FIELD).equals(key)) {
+							for (int j = i; j < precount - 1; j++) {
+								preContentValuesBase[j] = preContentValuesBase[j + 1];
+							}
+							precount--;
+						}
+					}
+					break;
+				case 8:
+					//delete key in prepreContent
+					for (int i = 0; i < preprecount; i++) {
+						if (prepreContentValuesBase[i].getAsString(KEY_FIELD).equals(key)) {
+							for (int j = i; j < preprecount - 1; j++) {
+								prepreContentValuesBase[j] = prepreContentValuesBase[j + 1];
+							}
+							preprecount--;
+						}
+					}
+					break;
+			}
+		} finally {
+			writeLock.unlock();
+		}
+		return ;
+	}
+	public MsgToSend SetMsgToSend(int type, String msg, String original){
+		MsgToSend msgToSend = new MsgToSend();
+		msgToSend.settype(type);
+		msgToSend.setMsg(msg);
+		msgToSend.setOriginal(original);
+		return msgToSend;
+	}
 	@Override
 	public boolean onCreate() {
 		// TODO Auto-generated method stub
@@ -520,94 +289,80 @@ public class SimpleDynamoProvider extends ContentProvider {
 		Log.i("Query",selection);
 		MatrixCursor cs = new MatrixCursor(matrix, 1);
 		queryoneresult = null;
-		queryallresult = null;
+		queryallresult = "";
 
 		if(selection.equals("*")){
-			boolean coordinatoralive = true;
-			String msg = "";
-			readLock.lock();
-			try {
-				for (int i = 0; i < count; i++) {
-					msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
-				}
-			}finally {
-				readLock.unlock();
-			}
-			//send the msg to the next to collect the contentvalues, and serverTask set a signal
-			Socket socket = null;
-			try {
-				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[suc]) * 2);
-				MsgToSend msgToSend = SetMsgToSend("QueryAllFirstTrail", msg,selfAvdNum);
-				ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-				objectOutputStream.writeObject(msgToSend);
-				objectOutputStream.flush();
-			}catch (UnknownHostException e){
-				e.printStackTrace();
-			}catch (IOException e){
-				e.printStackTrace();
-			}
-			try {
-				socket.setSoTimeout(readtimeout);
-				ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-				MsgToSend receviedMsg = (MsgToSend)inputStream.readObject();
-				if(receviedMsg.getType().equals("Iamalive")){
-					Log.i("QueryFirst","Iamalive");
-				}
-				coordinatoralive = true;
-				socket.close();
-			}catch(SocketException e){
-				e.printStackTrace();
-				try{
-					coordinatoralive = false;
-					socket.close();
-				}catch (IOException e2){
-					e2.printStackTrace();
-				}
-			}catch (IOException e){
-				e.printStackTrace();
-			}catch (ClassNotFoundException e){
-				e.printStackTrace();
-			}
-			if(!coordinatoralive ) {
-				try {
-					socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(suc + 1) % 5]) * 2);
-					MsgToSend msgToSend = SetMsgToSend("QueryAllSecondTrail",  msg, selfAvdNum);
-					ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
-					outputStream.writeObject(msgToSend);
-					outputStream.flush();
-
-					ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-					MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
-					if (receviedMsg.getType().equals("Iamalive")) {
-						Log.i("Query2", "Iamalive");
+			String singleresult = null;
+			for(int i = 0; i<5; i++){
+				if(avdNum[i].equals(selfAvdNum)){
+					String msg = "";
+					readLock.lock();
+					try {
+						for (int j = 0; j < count; j++) {
+							msg = msg + mContentValuesBase[j].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[j].getAsString(VALUE_FIELD) + "\n";
+						}
+					}finally {
+						readLock.unlock();
 					}
-					socket.close();
-					//Log.i("SecondTrial", receviedMsg.getMsg());
-				} catch (UnknownHostException e) {
-					e.printStackTrace();
-				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (ClassNotFoundException e) {
-					e.printStackTrace();
+					singleresult = msg;
+				}else {
+					try {
+						Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[i]) * 2);
+						ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+						MsgToSend msgToSend = SetMsgToSend(9, selection, selfAvdNum);
+						outputStream.writeObject(msgToSend);
+						outputStream.flush();
+						ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
+						MsgToSend receivedMsg = (MsgToSend) inputStream.readObject();
+						singleresult = receivedMsg.getMsg();
+						Log.i("QueryAllFrom", receivedMsg.getOriginal() + " " + singleresult);
+					} catch (UnknownHostException e) {
+						e.printStackTrace();
+					} catch (IOException e) {
+						i++;
+						if(avdNum[i].equals(selfAvdNum)){
+							String msg = "";
+							readLock.lock();
+							try {
+								for (int j = 0; j < count; j++) {
+									msg = msg + mContentValuesBase[j].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[j].getAsString(VALUE_FIELD) + "\n";
+								}
+							}finally {
+								readLock.unlock();
+							}
+							singleresult = msg;
+						}else {
+							try {
+								Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[i]) * 2);
+								ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+								MsgToSend msgToSend = SetMsgToSend(10, selection, selfAvdNum);
+								outputStream.writeObject(msgToSend);
+								outputStream.flush();
+								ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
+								MsgToSend receivedMsg = (MsgToSend) inputStream.readObject();
+								singleresult = receivedMsg.getMsg();
+								Log.i("QueryAllFrom2", receivedMsg.getOriginal() + " " + singleresult);
+							} catch (UnknownHostException e1) {
+								e1.printStackTrace();
+							} catch (IOException e1) {
+								e1.printStackTrace();
+							} catch (ClassNotFoundException e1) {
+								e1.printStackTrace();
+							}
+						}
+						e.printStackTrace();
+					} catch (ClassNotFoundException e) {
+						e.printStackTrace();
+					}
 				}
+				queryallresult += singleresult;
 			}
-
-				while(!queryall){
-
-				}
-				queryall = false;
-				String []seperated = queryallresult.split("\n");
-
-
-				for (int i = 0; i < seperated.length; i += 2) {
-					cs.addRow(new Object[]{seperated[i], seperated[i + 1]});
-					Log.i("queryall", seperated[i] + " " + seperated[i + 1]);
-				}
-
+			String []seperated = queryallresult.split("\n");
+			for (int i = 0; i < seperated.length; i += 2) {
+				cs.addRow(new Object[]{seperated[i], seperated[i + 1]});
+				Log.i("queryall", seperated[i] + " " + seperated[i + 1]);
+			}
 		}else if(selection.equals("@")){
-			//including all the pre and prepre
-			Log.i("QueryLocal", "Starts");
-
 			readLock.lock();
 			try {
 				for (int i = 0; i < count; i++) {
@@ -624,120 +379,59 @@ public class SimpleDynamoProvider extends ContentProvider {
 			}
 		}else{
 			//Log.i("QueryOne","Starts...");
-			readLock.lock();
-			try{
-				for(int i=0; i<count; i++){
-					if(mContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)){
-						cs.addRow(new Object[]{mContentValuesBase[i].getAsString(KEY_FIELD),mContentValuesBase[i].getAsString(VALUE_FIELD)});
-						Log.i("queryone1", mContentValuesBase[i].getAsString(KEY_FIELD) + " " + mContentValuesBase[i].getAsString(VALUE_FIELD));
-						return cs;
-					}
-				}
-				for(int i=0; i<precount; i++){
-					if(preContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)){
-						cs.addRow(new Object[]{preContentValuesBase[i].getAsString(KEY_FIELD),preContentValuesBase[i].getAsString(VALUE_FIELD)});
-						Log.i("queryone1", preContentValuesBase[i].getAsString(KEY_FIELD) + " " + preContentValuesBase[i].getAsString(VALUE_FIELD));
-						return cs;
-					}
-				}
-				for(int i=0; i<preprecount; i++){
-					if(prepreContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)){
-						cs.addRow(new Object[]{prepreContentValuesBase[i].getAsString(KEY_FIELD),prepreContentValuesBase[i].getAsString(VALUE_FIELD)});
-						Log.i("queryone1", prepreContentValuesBase[i].getAsString(KEY_FIELD) + " " + prepreContentValuesBase[i].getAsString(VALUE_FIELD));
-						return cs;
-					}
-				}
-			}finally {
-				readLock.unlock();
-			}
-			int des = 0;
-			try {
-				String selectionHash = genHash(selection);
-				for(int i=0; i<5; i++){
-					if(avdHash[i].compareTo(selectionHash)>=0){
-						des = i;
-						break;
-					}
-				}
-				if(avdHash[4].compareTo(selectionHash)<0) des = 0;
-			}catch (NoSuchAlgorithmException e){
-				e.printStackTrace();
-			}
-			boolean coordinatoralive = true;
-			Socket socket = null;
-			//Log.i("QueryOne","Starts");
-			try {
-				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[des])*2);
-				MsgToSend msgToSend = SetMsgToSend("QueryOneFirstTrail", selection,null);
-				Log.i("QOFirstTrailST",avdNum[des]+" "+selection);
-				ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
-				outputStream.writeObject(msgToSend);
-				outputStream.flush();
-			}catch (UnknownHostException e){
-				e.printStackTrace();
-			}catch (IOException e){
-				e.printStackTrace();
-			}
-			try {
-				socket.setSoTimeout(readtimeout);
-				ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-				MsgToSend receviedMsg = (MsgToSend)inputStream.readObject();
-				if(receviedMsg.getType().equals("Ifound")){
-					queryoneresult = receviedMsg.getMsg();
-					Log.i("Query","Succeeds");
-				}
-				Log.i("QueryOneFirstTrail",receviedMsg.getMsg());
-				coordinatoralive = true;
-				socket.close();
-			}catch(SocketException e){
-				e.printStackTrace();
-				try{
-					coordinatoralive = false;
-					Log.i("QueryOneFirstTrail","Failed");
-					socket.close();
-				}catch (IOException e2){
-					e2.printStackTrace();
-				}
-			}catch (IOException e){
-				e.printStackTrace();
-			}catch (ClassNotFoundException e){
-				e.printStackTrace();
-			}
-
-			if(!coordinatoralive ) {
+			int des = FindDes(selection);
+			String []sendto = {avdNum[des],avdNum[(des+1)%5],avdNum[(des+2)%5]};
+			String singleresult = null;
+			for(int i=0; i<3; i++){
 				try {
-					socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(des + 1) % 5]) * 2);
-					MsgToSend msgToSend = SetMsgToSend("QueryOneSecondTrail", selection,null);
-					Log.i("QOSecondTrailST",avdNum[des]+" "+selection);
+					Socket socket= new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(sendto[i]) * 2);
 					ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+					MsgToSend msgToSend = SetMsgToSend(11+i, selection,selfAvdNum);
 					outputStream.writeObject(msgToSend);
 					outputStream.flush();
-
 					ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-					MsgToSend receviedMsg = (MsgToSend) inputStream.readObject();
-					if(receviedMsg.getType().equals("Ifound")){
-						queryoneresult = receviedMsg.getMsg();
-						Log.i("QeuryOneSecondTrail","Succeed");
-					}
-					socket.close();
+					MsgToSend receivedMsg = (MsgToSend)inputStream.readObject();
+					singleresult = receivedMsg.getMsg();
+					Log.i("QueryOneFrom",receivedMsg.getOriginal()+" " +singleresult);
 				} catch (UnknownHostException e) {
 					e.printStackTrace();
 				} catch (IOException e) {
-					Log.i("QeuryOneSecondTrail","Failed");
+					try {
+						Socket socket= new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(sendto[++i]) * 2);
+						ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+						MsgToSend msgToSend = SetMsgToSend(11+i, selection,selfAvdNum);
+						outputStream.writeObject(msgToSend);
+						outputStream.flush();
+						ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
+						MsgToSend receivedMsg = (MsgToSend)inputStream.readObject();
+						singleresult = receivedMsg.getMsg();
+						Log.i("QueryOneFrom2",receivedMsg.getOriginal()+" " +singleresult);
+					} catch (UnknownHostException e1) {
+						e1.printStackTrace();
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}catch (ClassNotFoundException e1){
+						e1.printStackTrace();
+					}
 					e.printStackTrace();
-				} catch (ClassNotFoundException e) {
+				}catch (ClassNotFoundException e){
 					e.printStackTrace();
 				}
+				if (singleresult != null) {
+					writeLock.lock();
+					try {
+						queryoneresult = singleresult;
+					}finally {
+						writeLock.unlock();
+					}
+					break;
+				}
 			}
-
 			String []seperated = queryoneresult.split("\n");
-
 			cs.addRow(new Object[]{seperated[0], seperated[1]});
 
 			Log.i("queryone2", seperated[0] + " " + seperated[1]);
 		}
-		Log.i("QueryOne","Ends");
-		//cs.addRow(new Object[]{keyresult, valueresult});
 		if(cs == null)
 		{
 			Log.v("matrixcursor is ", "null");
@@ -774,121 +468,62 @@ public class SimpleDynamoProvider extends ContentProvider {
 		protected Void doInBackground(String ...msgs){
 			//ask pre and prepre, ask suc
 			//ask pre
+			String []sendto = {null,null,null};
 			for(int i=0; i<5; i++){
 				if(avdNum[i].equals(selfAvdNum)){
-					pre = (i+5-1)%5;
-					prepre = (pre+5-1)%5;
-					suc = (i+1)%5;
+					sendto[0] = avdNum[(i+5-2)%5];
+					sendto[1] = avdNum[(i+5-1)%5];
+					sendto[2] = avdNum[(i+1)%5];
 					break;
 				}
 			}
-			Socket socket = null;
 			try {
-				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[pre]) * 2);
-				//Log.i("port number pre","is "+ Integer.parseInt(avdNum[pre]) * 2);
-				MsgToSend msgToSend = SetMsgToSend("GiveMeYourmContent",null,selfAvdNum);
-				ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-				objectOutputStream.writeObject(msgToSend);
-				objectOutputStream.flush();
+				for(int i = 0; i<3; i++) {
+					Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(sendto[i]) * 2);
+					//Log.i("port number pre","is "+ Integer.parseInt(avdNum[pre]) * 2);
+					MsgToSend msgToSend = SetMsgToSend(14+i, null, selfAvdNum);
+					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+					objectOutputStream.writeObject(msgToSend);
+					objectOutputStream.flush();
 
-				ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
-				MsgToSend receivedMsg = (MsgToSend)objectInputStream.readObject();
-				writeLock.lock();
-				try{
-					String []seperated = receivedMsg.getMsg().split("\n");
-					if(receivedMsg.getMsg().equals(""))
-					{
-						precount = 0;
-					}else {
-						for (int i = 0; i < seperated.length; i += 2) {
-							int j = i / 2;
-							preContentValuesBase[j].put(KEY_FIELD, seperated[i]);
-							preContentValuesBase[j].put(VALUE_FIELD, seperated[i + 1]);
+					ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
+					MsgToSend receivedMsg = (MsgToSend) objectInputStream.readObject();
+					writeLock.lock();
+					try {
+						if(receivedMsg.getMsg()!=null && (!receivedMsg.getMsg().equals(""))){
+							String[] seperated = receivedMsg.getMsg().split("\n");
+							switch (i){
+								case 0:
+									preprecount = seperated.length / 2;
+									for (int j = 0; j < seperated.length; j += 2) {
+										prepreContentValuesBase[(j/2)].put(KEY_FIELD, seperated[j]);
+										prepreContentValuesBase[(j/2)].put(VALUE_FIELD, seperated[j + 1]);
+										Log.i("PrepreReFrom", seperated[j]+" "+seperated[j+1]+" from "+receivedMsg.getOriginal());
+									}
+									break;
+								case 1:
+									precount = seperated.length / 2;
+									for (int j = 0; j < seperated.length; j += 2) {
+										preContentValuesBase[(j/2)].put(KEY_FIELD, seperated[j]);
+										preContentValuesBase[(j/2)].put(VALUE_FIELD, seperated[j + 1]);
+										Log.i("PreReFrom", seperated[j] + " " + seperated[j+1] + " from " + receivedMsg.getOriginal());
+									}
+									break;
+								case 2:
+									count = seperated.length / 2;
+									for (int j = 0; j < seperated.length; j += 2) {
+										mContentValuesBase[(j/2)].put(KEY_FIELD, seperated[j]);
+										mContentValuesBase[(j/2)].put(VALUE_FIELD, seperated[j + 1]);
+										Log.i("MReFrom", seperated[j] + " " + seperated[j + 1] + " from " + receivedMsg.getOriginal());
+									}
+									break;
+							}
 						}
-						precount = seperated.length/2;
-						Log.i("PreConReSuc", "" + (precount - 1));
+					} finally {
+						writeLock.unlock();
 					}
-				}finally {
-					writeLock.unlock();
+					socket.close();
 				}
-				socket.close();
-			}catch (UnknownHostException e){
-				e.printStackTrace();
-			}catch (IOException e){
-				e.printStackTrace();
-			}catch (ClassNotFoundException e){
-				e.printStackTrace();
-			}
-
-			try {
-				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[prepre]) * 2);
-				//Log.i("port number prepre","is "+ Integer.parseInt(avdNum[prepre]) * 2);
-				MsgToSend msgToSend = SetMsgToSend("GiveMeYourmContent",null,selfAvdNum);
-				ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-				objectOutputStream.writeObject(msgToSend);
-				objectOutputStream.flush();
-
-				ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
-				MsgToSend receivedMsg = (MsgToSend)objectInputStream.readObject();
-				writeLock.lock();
-				try {
-					//preprecount = prepreContentValuesBase.length;
-					String []seperated = receivedMsg.getMsg().split("\n");
-					if(receivedMsg.getMsg().equals(""))
-					{
-						preprecount = 0;
-					}else {
-						for (int i = 0; i < seperated.length; i += 2) {
-							int j = i / 2;
-							prepreContentValuesBase[j].put(KEY_FIELD, seperated[i]);
-							prepreContentValuesBase[j].put(VALUE_FIELD, seperated[i + 1]);
-						}
-						preprecount = seperated.length/2;
-						Log.i("PrePreConReSuc",""+(preprecount-1));
-					}
-				}finally {
-					writeLock.unlock();
-				}
-				socket.close();
-			}catch (UnknownHostException e){
-				e.printStackTrace();
-			}catch (IOException e){
-				e.printStackTrace();
-			}catch (ClassNotFoundException e){
-				e.printStackTrace();
-			}
-
-			try {
-				socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[suc]) * 2);
-				//Log.i("port number suc","is "+Integer.parseInt(avdNum[suc]) * 2);
-				MsgToSend msgToSend = SetMsgToSend("GiveMeYourPre", null,selfAvdNum);
-				ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-				objectOutputStream.writeObject(msgToSend);
-				objectOutputStream.flush();
-
-				ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
-				MsgToSend receivedMsg = (MsgToSend)objectInputStream.readObject();
-				writeLock.lock();
-				try {
-					//preprecount = prepreContentValuesBase.length;
-					String []seperated = receivedMsg.getMsg().split("\n");
-					if(receivedMsg.getMsg().equals(""))
-					{
-						count = 0;
-					}else {
-						for (int i = 0; i < seperated.length; i += 2) {
-							int j = i / 2;
-							mContentValuesBase[j].put(KEY_FIELD, seperated[i]);
-							mContentValuesBase[j].put(VALUE_FIELD, seperated[i + 1]);
-						}
-						count = seperated.length/2;
-						Log.i("mConReSuc",""+(count-1));
-					}
-					//count = mContentValuesBase.length;
-				}finally {
-					writeLock.unlock();
-				}
-				socket.close();
 			}catch (UnknownHostException e){
 				e.printStackTrace();
 			}catch (IOException e){
@@ -908,7 +543,6 @@ public class SimpleDynamoProvider extends ContentProvider {
 			try{
 				while(true){
 					Socket socket= serverSocket.accept();
-					//Log.i("serverSocket",socket.toString());
 					new Thread(new MultiServer(socket)).start();
 				}
 			}catch (IOException e){
@@ -923,539 +557,139 @@ public class SimpleDynamoProvider extends ContentProvider {
 			this.socket = socket;
 		}
 		public void run(){
-
 			try {
 				ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
 				MsgToSend receivedMsg = (MsgToSend) objectInputStream.readObject();
-				//Log.i("type and avd", receivedMsg.getMsg()+receivedMsg.getType());
-				if (receivedMsg.getType().equals("InsertFirstTrail")) {
-					//store the key into own contentValues, and pass it to the next two nodes
-					ContentValues contentValues = new ContentValues();
-					String []seperated = receivedMsg.getMsg().split("\n");
-					contentValues.put(KEY_FIELD, seperated[0]);
-					contentValues.put(VALUE_FIELD, seperated[1]);
-					writeLock.lock();
-					try {
-						mContentValuesBase[count++] = contentValues;
-						Log.i("mContentInsertTrans", seperated[0]+" "+seperated[1]+" "+(count-1)+" inserted");
-					}finally {
-						writeLock.unlock();
-					}
+				//Log.i("type and avd", receivedMsg.getType()+receivedMsg.getOriginal());
+				String msg = "";
+				MsgToSend msgToSend = null;
+				ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+				switch (receivedMsg.getType()){
 
-					int []next = {0,0};
-					for (int i = 0; i < 5; i++) {
-						if (avdNum[i].equals(selfAvdNum)) {
-							next[0] = (i + 1) % 5;
-							next[1] = (next[0] + 1) % 5;
-						}
-					}
-					//send to the next and next of next node
-					for (int i = 0; i < 2; i++) {
-						Socket newSocket = null;
-						MsgToSend msgToSend = null;
-						if (i == 0) {
-							msgToSend = SetMsgToSend("PreAvdInsert", receivedMsg.getMsg(), null);
-						} else
-							msgToSend = SetMsgToSend("PrePreAvdInsert", receivedMsg.getMsg(), null);
-						try {
-							newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next[i]]) * 2);
-							ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
-							newoutputStream.writeObject(msgToSend);
-							newoutputStream.flush();
-							Log.i("SendTheMsgTo", msgToSend.getMsg() + " to " + avdNum[next[i]]);
-						} catch (UnknownHostException e) {
-							e.printStackTrace();
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-						try {
-							newSocket.setSoTimeout(readtimeout);
-							ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
-							MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
-							if (receviedMsg.getType().equals("InsertSucceed")) {
-								Log.i("SendTheMsgToSucceed", msgToSend.getMsg() + " to " + avdNum[next[i]]);
-							}
-
-							newSocket.close();
-						} catch (SocketException e) {
-							e.printStackTrace();
-						} catch (IOException e) {
-							e.printStackTrace();
-						} catch (ClassNotFoundException e) {
-							e.printStackTrace();
-						}
-					}
-					//after receiving the feedback from the next two nodes, the node could return the value.
-					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-					MsgToSend msgReturn = SetMsgToSend("InsertSucceed", receivedMsg.getMsg(), null);
-					objectOutputStream.writeObject(msgReturn);
-					objectOutputStream.flush();
-
-				} else if (receivedMsg.getType().equals("InsertSecondTrial")) {
-					ContentValues contentValues = new ContentValues();
-					String []seperated = receivedMsg.getMsg().split("\n");
-					contentValues.put(KEY_FIELD, seperated[0]);
-					contentValues.put(VALUE_FIELD, seperated[1]);
-					writeLock.lock();
-					try {
-						preContentValuesBase[precount++] = contentValues;
-						Log.i("PreConInsert", seperated[0]+" "+seperated[1]+" "+(precount-1)+" inserted");
-					}finally {
-						writeLock.unlock();
-					}
-
-					int next=0;
-					for (int i = 0; i < 5; i++) {
-						if (avdNum[i].equals(selfAvdNum)) {
-							next = (i + 1) % 5;
-						}
-					}
-					Socket newSocket = null;
-					try {
-						newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next]) * 2);
-						MsgToSend newmsgToSend = SetMsgToSend("PrePreAvdInsert", receivedMsg.getMsg(), null);
-						ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
-						newoutputStream.writeObject(newmsgToSend);
-						newoutputStream.flush();
-						ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
-						MsgToSend newreceivedMsg = (MsgToSend) newinputStream.readObject();
-						if (newreceivedMsg.getType().equals("InsertSucceed")) {
-							Log.i("SendTheMsgToSucceed", newreceivedMsg.getMsg() + " to " + avdNum[next]);
-						}
-						newSocket.close();
-					} catch (SocketException e) {
-						e.printStackTrace();
-					} catch (IOException e) {
-						e.printStackTrace();
-					} catch (ClassNotFoundException e) {
-						e.printStackTrace();
-					}
-					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-					MsgToSend msgReturn = SetMsgToSend("InsertSucceed", receivedMsg.getMsg(), null);
-					objectOutputStream.writeObject(msgReturn);
-					objectOutputStream.flush();
-
-				} else if (receivedMsg.getType().equals("PreAvdInsert")||receivedMsg.getType().equals("PrePreAvdInsert")) {
-					ContentValues contentValues = new ContentValues();
-					String []seperated = receivedMsg.getMsg().split("\n");
-					contentValues.put(KEY_FIELD, seperated[0]);
-					contentValues.put(VALUE_FIELD, seperated[1]);
-					writeLock.lock();
-					try {
-						if (receivedMsg.getType().equals("PreAvdInsert")) {
-							preContentValuesBase[precount++] = contentValues;
-							Log.i("PreConInsert", seperated[0]+" "+seperated[1]+" "+(precount-1)+" inserted");
-						} else if (receivedMsg.getType().equals("PrePreAvdInsert")) {
-							prepreContentValuesBase[preprecount++] = contentValues;
-							Log.i("PrePreConInsert", seperated[0]+" "+seperated[1]+" "+(preprecount-1)+" inserted");
-						}
-					}finally {
-						writeLock.unlock();
-					}
-
-					MsgToSend msgReturn = SetMsgToSend("InsertSucceed", receivedMsg.getMsg(), null);
-					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-					objectOutputStream.writeObject(msgReturn);
-					objectOutputStream.flush();
-
-				} else if (receivedMsg.getType().equals("GiveMeYourmContent")) {
-					String msg = "";
-					readLock.lock();
-					try {
-						for (int i = 0; i < count; i++) {
-							msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
-						}
-					}finally {
-						readLock.unlock();
-					}
-					MsgToSend msgToSend = SetMsgToSend(null,msg, null);
-					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-					objectOutputStream.writeObject(msgToSend);
-					objectOutputStream.flush();
-					//Log.i("GiveMePre&PrePre", "send out");
-				} else if (receivedMsg.getType().equals("GiveMeYourPre")) {
-					String msg = "";
-					readLock.lock();
-					try {
-						for (int i = 0; i < precount; i++) {
-							msg = msg + preContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + preContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
-						}
-					}finally {
-						readLock.unlock();
-					}
-					MsgToSend msgToSend = SetMsgToSend(null, msg, null);
-					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-					objectOutputStream.writeObject(msgToSend);
-					objectOutputStream.flush();
-					//Log.i("GiveMeMine", "send out");
-
-				} else if (receivedMsg.getType().equals("QueryAllFirstTrail") || receivedMsg.getType().equals("QueryAllSecondTrail")) {
-					//and return to the socket.output query succeeds
-					//check whether this is the destination
-					//put mContentValues into the msg
-					//and pass it to the next nodes
-					//if next nodes fails, the pass it to the nextnext nodes
-
-					if (receivedMsg.getOriginal().equals(selfAvdNum)) {
-						queryall = true;
-						queryallresult = receivedMsg.getMsg();
-					} else {
-						String msg = receivedMsg.getMsg();
+					case 0://insert to mContent
+					case 1://insert to preContent
+					case 2://insert to prepreContent
+						String []seperated = receivedMsg.getMsg().split("\n");
+						ContentValues contentValues = new ContentValues();
+						contentValues.put(KEY_FIELD,seperated[0]);
+						contentValues.put(VALUE_FIELD,seperated[1]);
+						InsertToCon(receivedMsg.getType(), contentValues);
+						break;
+					case 3:
+					case 4:
+					case 5:
+					case 6:
+					case 7:
+					case 8:
+						DeleteCon(receivedMsg.getType(),receivedMsg.getMsg());
+						break;
+					case 9:
+						//send mContent
 						readLock.lock();
 						try {
-							if (receivedMsg.getType().equals("QueryAllFirstTrail")) {
-								for (int i = 0; i < count; i++) {
-									msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
-								}
-							} else if (receivedMsg.getType().equals("QueryAllSecondTrail")) {
-								for (int i = 0; i < precount; i++) {
-									msg = msg + preContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + preContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
-								}
-								for (int i = 0; i < count; i++) {
-									msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
+							for (int i = 0; i < count; i++) {
+								msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
+							}
+						}finally {
+							readLock.unlock();
+						}
+						msgToSend = SetMsgToSend(9,msg, selfAvdNum);
+						objectOutputStream.writeObject(msgToSend);
+						objectOutputStream.flush();
+						break;
+					case 10:
+						//send preContent
+						readLock.lock();
+						try {
+							for (int i = 0; i < precount; i++) {
+								msg = msg + preContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + preContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
+							}
+						}finally {
+							readLock.unlock();
+						}
+						msgToSend = SetMsgToSend(10,msg, selfAvdNum);
+						objectOutputStream.writeObject(msgToSend);
+						objectOutputStream.flush();
+						break;
+					case 11:
+						//query in the mContent
+						readLock.lock();
+						try {
+							for (int i = 0; i < count; i++) {
+								if (mContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
+									msgToSend = SetMsgToSend(11, mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n", selfAvdNum);
+									break;
 								}
 							}
 						}finally {
 							readLock.unlock();
 						}
-						boolean coordinatoralive = true;
-						Socket newsocket = null;
-						try {
-							newsocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[suc]) * 2);
-							MsgToSend newmsgToSend = SetMsgToSend("QueryAllFirstTrail", msg, receivedMsg.getOriginal());
-							ObjectOutputStream newobjectOutputStream = new ObjectOutputStream(newsocket.getOutputStream());
-							newobjectOutputStream.writeObject(newmsgToSend);
-							newobjectOutputStream.flush();
-						} catch (UnknownHostException e) {
-							e.printStackTrace();
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-						try {
-							newsocket.setSoTimeout(readtimeout);
-							ObjectInputStream newinputStream = new ObjectInputStream(newsocket.getInputStream());
-							MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
-							if (receviedMsg.getType().equals("Iamalive")) {
-								Log.i("QueryFirst", "Iamalive");
-							}
-							coordinatoralive = true;
-							newsocket.close();
-						} catch (SocketException e) {
-							e.printStackTrace();
-							try {
-								coordinatoralive = false;
-								newsocket.close();
-							} catch (IOException e2) {
-								e2.printStackTrace();
-							}
-						} catch (IOException e) {
-							e.printStackTrace();
-						} catch (ClassNotFoundException e) {
-							e.printStackTrace();
-						}
-						if (!coordinatoralive) {
-							try {
-								newsocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(suc + 1) % 5]) * 2);
-								MsgToSend newmsgToSend = SetMsgToSend("QueryAllSecondTrail",  msg, receivedMsg.getOriginal());
-								ObjectOutputStream newoutputStream = new ObjectOutputStream(newsocket.getOutputStream());
-								newoutputStream.writeObject(newmsgToSend);
-								newoutputStream.flush();
-
-								ObjectInputStream newinputStream = new ObjectInputStream(newsocket.getInputStream());
-								MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
-								if (receviedMsg.getType().equals("Iamalive")) {
-									Log.i("QueryAll2", "Succeed");
-								}
-								newsocket.close();
-								//Log.i("QueryAllSecondTrial", receviedMsg.getValue());
-							} catch (UnknownHostException e) {
-								e.printStackTrace();
-							} catch (IOException e) {
-								e.printStackTrace();
-							} catch (ClassNotFoundException e) {
-								e.printStackTrace();
-							}
-						}
-					}
-					MsgToSend msgToSend = SetMsgToSend("Iamalive", null, null);
-					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-					objectOutputStream.writeObject(msgToSend);
-					objectOutputStream.flush();
-				} else if(receivedMsg.getType().equals("QueryOneFirstTrail")||receivedMsg.getType().equals("QueryOneSecondTrail")){
-					String selection = receivedMsg.getMsg();
-					MsgToSend msgToSend = new MsgToSend();
-
-					readLock.lock();
-					try {
-						if (receivedMsg.getType().equals("QueryOneFirstTrail")) {
-							Log.i("QueryOneFirstTrail", selfAvdNum+" has received"+selection);
-							for (int i = 0; i < count; i++) {
-								if (mContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)) {
-									msgToSend = SetMsgToSend("Ifound", mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n", null);
-									break;
-								}
-							}
-						} else if (receivedMsg.getType().equals("QueryOneSecondTrail")) {
-							Log.i("QueryOneSecondTrail", selfAvdNum+" has received"+selection);
-							for (int i = 0; i < precount; i++) {
-								if (preContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)) {
-									msgToSend = SetMsgToSend("Ifound", preContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + preContentValuesBase[i].getAsString(VALUE_FIELD) + "\n", null);
-									break;
-								}
-							}
-						}
-					}finally {
-						readLock.unlock();
-					}
-					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-					objectOutputStream.writeObject(msgToSend);
-					objectOutputStream.flush();
-
-				}else if (receivedMsg.getType().equals("DeleteAllFirstTrail") || receivedMsg.getType().equals("DeleteAllSecondTrail")) {
-					writeLock.lock();
-					try {
-						count = 0;
-						precount = 0;
-						preprecount = 0;
-					}finally {
-						writeLock.unlock();
-					}
-					if (!receivedMsg.getOriginal().equals(selfAvdNum)) {
-						//SendMsg(String.valueOf(Integer.valueOf(selfavd) * 2), String.valueOf(Integer.valueOf(successor) * 2), "DeleteAll",null, null,null,null,null);
-						boolean coordinatoralive = true;
-
-						//send the msg to the next to delete all the contentValues
-						Socket newsocket = null;
-						try {
-							newsocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[suc]) * 2);
-							MsgToSend newmsgToSend = SetMsgToSend("DeleteAllFirstTrail", null,receivedMsg.getOriginal());
-							ObjectOutputStream newobjectOutputStream = new ObjectOutputStream(newsocket.getOutputStream());
-							newobjectOutputStream.writeObject(newmsgToSend);
-							newobjectOutputStream.flush();
-						} catch (UnknownHostException e) {
-							e.printStackTrace();
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-						try {
-							newsocket.setSoTimeout(readtimeout);
-							ObjectInputStream newinputStream = new ObjectInputStream(newsocket.getInputStream());
-							MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
-							if (receviedMsg.getType().equals("DeleteSucceed")) {
-								Log.i("DeleteFirst", "Succeeds");
-							}
-							coordinatoralive = true;
-							newsocket.close();
-						} catch (SocketException e) {
-							e.printStackTrace();
-							try {
-								coordinatoralive = false;
-								newsocket.close();
-							} catch (IOException e2) {
-								e2.printStackTrace();
-							}
-						} catch (IOException e) {
-							e.printStackTrace();
-						} catch (ClassNotFoundException e) {
-							e.printStackTrace();
-						}
-						if (!coordinatoralive) {
-							try {
-								newsocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(suc + 1) % 5]) * 2);
-								MsgToSend newmsgToSend = SetMsgToSend("DeleteAllSecondTrail",  null, receivedMsg.getOriginal());
-								ObjectOutputStream newoutputStream = new ObjectOutputStream(newsocket.getOutputStream());
-								newoutputStream.writeObject(newmsgToSend);
-								newoutputStream.flush();
-
-								ObjectInputStream newinputStream = new ObjectInputStream(newsocket.getInputStream());
-								MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
-								if (receviedMsg.getType().equals("DeleteSucceed")) {
-									Log.i("Delete", "Succeed");
-								}
-								newsocket.close();
-							} catch (UnknownHostException e) {
-								e.printStackTrace();
-							} catch (IOException e) {
-								e.printStackTrace();
-							} catch (ClassNotFoundException e) {
-								e.printStackTrace();
-							}
-						}
-					}
-					MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
-					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-					objectOutputStream.writeObject(msgToSend);
-					objectOutputStream.flush();
-
-				} else if(receivedMsg.getMsg().equals("DeletePre")||receivedMsg.getMsg().equals("DeletePrePre")){
-					writeLock.lock();
-					try {
-						if (receivedMsg.getMsg().equals("DeletePre")) {
-							precount = 0;
-						} else if (receivedMsg.getMsg().equals("DeletePrePre")) {
-							preprecount = 0;
-						}
-					}finally {
-						writeLock.unlock();
-					}
-					MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
-					ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-					objectOutputStream.writeObject(msgToSend);
-					objectOutputStream.flush();
-
-				} else if(receivedMsg.getType().equals("DeleteOneInPre")||receivedMsg.getType().equals("DeleteOneInPrePre")){
-					if(receivedMsg.getType().equals("DeleteOneInPre")){
-						writeLock.lock();
-						try {
+						objectOutputStream.writeObject(msgToSend);
+						objectOutputStream.flush();
+						break;
+					case 12:
+						//query in the preContent
+						readLock.lock();
+						try{
 							for (int i = 0; i < precount; i++) {
 								if (preContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
-									for (int j = i; j < precount - 1; j++) {
-										preContentValuesBase[j] = preContentValuesBase[j + 1];
-									}
-									precount--;
+									msgToSend = SetMsgToSend(12, preContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + preContentValuesBase[i].getAsString(VALUE_FIELD) + "\n", selfAvdNum);
+									break;
 								}
 							}
 						}finally {
-							writeLock.unlock();
+							readLock.unlock();
 						}
-						MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
-						ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 						objectOutputStream.writeObject(msgToSend);
 						objectOutputStream.flush();
-					}else if(receivedMsg.getType().equals("DeleteOneInPrePre")){
-						writeLock.lock();
-						try {
+						break;
+					case 13:
+						//query in the prepreContent
+						readLock.lock();
+						try{
 							for (int i = 0; i < preprecount; i++) {
 								if (prepreContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
-									for (int j = i; j < preprecount - 1; j++) {
-										prepreContentValuesBase[j] = prepreContentValuesBase[j + 1];
-									}
-									preprecount--;
+									msgToSend = SetMsgToSend(12, prepreContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + prepreContentValuesBase[i].getAsString(VALUE_FIELD) + "\n", selfAvdNum);
+									break;
 								}
 							}
 						}finally {
-							writeLock.unlock();
+							readLock.unlock();
 						}
-						MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
-						ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 						objectOutputStream.writeObject(msgToSend);
 						objectOutputStream.flush();
-					}
-				}else if (receivedMsg.getType().equals("DeleteOneFirstTrail") || receivedMsg.getType().equals("DeleteOneSecondTrail")) {
-					if (receivedMsg.getType().equals("DeleteOneFirstTrail")) {
-						writeLock.lock();
+						break;
+					case 14:
+					case 15:
+						readLock.lock();
 						try {
 							for (int i = 0; i < count; i++) {
-								if (mContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
-									for (int j = i; j < count - 1; j++) {
-										mContentValuesBase[j] = mContentValuesBase[j + 1];
-									}
-									count--;
-								}
+								msg = msg + mContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
 							}
 						}finally {
-							writeLock.unlock();
+							readLock.unlock();
 						}
-						//send to next and nextnext to delete this one
-						int[] next = {0, 0};
-						for (int i = 0; i < 5; i++) {
-							if (avdNum[i].equals(selfAvdNum)) {
-								next[0] = (i + 1) % 5;
-								next[1] = (next[0] + 1) % 5;
-								break;
-							}
-						}
-						//send to the next and next of next node
-						for (int i = 0; i < 2; i++) {
-							Socket newSocket = null;
-							MsgToSend msgToSend = null;
-							if (i == 0) {
-								msgToSend = SetMsgToSend("DeleteOneInPre", null, null);
-							} else
-								msgToSend = SetMsgToSend("DeleteOneInPrePre", null, null);
-							try {
-								newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next[i]]) * 2);
-								ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
-								Log.i("DeleteOneSendTo", avdNum[next[i]]);
-								newoutputStream.writeObject(msgToSend);
-								newoutputStream.flush();
-							} catch (UnknownHostException e) {
-								e.printStackTrace();
-							} catch (IOException e) {
-								e.printStackTrace();
-							}
-							try {
-								newSocket.setSoTimeout(readtimeout);
-								ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
-								MsgToSend receviedMsg = (MsgToSend) newinputStream.readObject();
-								if (receviedMsg.getType().equals("DeleteSucceed")) {
-									Log.i("DeleteOne", "Succeeds");
-								}
-								newSocket.close();
-							} catch (SocketException e) {
-								e.printStackTrace();
-								try {
-									Log.i("DeleteOneFailed", "because " + avdNum[next[i]] + " shot down");
-									newSocket.close();
-								} catch (IOException e2) {
-									e2.printStackTrace();
-								}
-							} catch (IOException e) {
-								e.printStackTrace();
-							} catch (ClassNotFoundException e) {
-								e.printStackTrace();
-							}
-						}
-						MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
-						ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+						msgToSend = SetMsgToSend(9,msg, selfAvdNum);
 						objectOutputStream.writeObject(msgToSend);
 						objectOutputStream.flush();
-
-					} else if (receivedMsg.getType().equals("DeleteOneSecondTrail")) {
-						writeLock.lock();
+						break;
+					case 16:
+						readLock.lock();
 						try {
 							for (int i = 0; i < precount; i++) {
-								if (preContentValuesBase[i].getAsString(KEY_FIELD).equals(receivedMsg.getMsg())) {
-									for (int j = i; j < precount - 1; j++) {
-										preContentValuesBase[j] = preContentValuesBase[j + 1];
-									}
-									precount--;
-								}
+								msg = msg + preContentValuesBase[i].getAsString(KEY_FIELD) + "\n" + preContentValuesBase[i].getAsString(VALUE_FIELD) + "\n";
+								Log.i("SendpreContto", preContentValuesBase[i].getAsString(KEY_FIELD) + " " + preContentValuesBase[i].getAsString(VALUE_FIELD)+" to " +receivedMsg.getOriginal());
 							}
 						}finally {
-							writeLock.unlock();
+							readLock.unlock();
 						}
-						int next=0;
-						for (int i = 0; i < 5; i++) {
-							if (avdNum[i].equals(selfAvdNum)) {
-								next = (i + 1) % 5;
-							}
-						}
-						Socket newSocket = null;
-						try {
-							newSocket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[next]) * 2);
-							MsgToSend newmsgToSend = SetMsgToSend("DeleteOneInPrePre", receivedMsg.getMsg(), null);
-							ObjectOutputStream newoutputStream = new ObjectOutputStream(newSocket.getOutputStream());
-							newoutputStream.writeObject(newmsgToSend);
-							newoutputStream.flush();
-							ObjectInputStream newinputStream = new ObjectInputStream(newSocket.getInputStream());
-							MsgToSend newreceivedMsg = (MsgToSend) newinputStream.readObject();
-							if (newreceivedMsg.getType().equals("DeleteSucceed")) {
-								Log.i("DeleteOne", "Succeeds");
-							}
-							newSocket.close();
-						} catch (SocketException e) {
-							e.printStackTrace();
-						} catch (IOException e) {
-							e.printStackTrace();
-						} catch (ClassNotFoundException e) {
-							e.printStackTrace();
-						}
-						MsgToSend msgToSend = SetMsgToSend("DeleteSucceed",  null, null);
-						ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+						msgToSend = SetMsgToSend(9,msg, selfAvdNum);
 						objectOutputStream.writeObject(msgToSend);
 						objectOutputStream.flush();
-					}
+						break;
+					default:
+						break;
+
 				}
 			}catch (IOException e){
 				e.printStackTrace();
@@ -1463,13 +697,6 @@ public class SimpleDynamoProvider extends ContentProvider {
 				e.printStackTrace();
 			}
 		}
-	}
-	public MsgToSend SetMsgToSend(String type, String msg, String original){
-		MsgToSend msgToSend = new MsgToSend();
-		msgToSend.settype(type);
-		msgToSend.setMsg(msg);
-		msgToSend.setOriginal(original);
-		return msgToSend;
 	}
 	public  ContentValues[] SetContent(String msg){
 		ContentValues [] tem = new ContentValues[TEST_CNT];
@@ -1485,5 +712,4 @@ public class SimpleDynamoProvider extends ContentProvider {
 		}
 		return  tem;
 	}
-
 }
