@@ -33,7 +33,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 	private  ContentValues[] mContentValuesBase;
 	private  ContentValues[] preContentValuesBase;
 	private  ContentValues[] prepreContentValuesBase;
-	private static final int TEST_CNT = 100;
+	private static final int TEST_CNT = 200;
 	private static int count = 0, precount = 0, preprecount = 0;
 	private static final String KEY_FIELD = "key";
 	private static final String VALUE_FIELD = "value";
@@ -153,12 +153,30 @@ public class SimpleDynamoProvider extends ContentProvider {
 		writeLock.lock();
 		try {
 			if (i == 0) {
+				for(int j=0; j<count; j++){
+					if(mContentValuesBase[j].getAsString(KEY_FIELD).equals(values.getAsString(KEY_FIELD))){
+						mContentValuesBase[j] = values;
+						return;
+					}
+				}
 				mContentValuesBase[count++] = values;
 				Log.i("mContentInsert", values.getAsString(KEY_FIELD) + " " + values.getAsString(VALUE_FIELD) + " " + (count - 1) + " inserted");
 			} else if (i == 1) {
+				for(int j=0; j<precount; j++){
+					if(preContentValuesBase[j].getAsString(KEY_FIELD).equals(values.getAsString(KEY_FIELD))){
+						preContentValuesBase[j] = values;
+						return;
+					}
+				}
 				preContentValuesBase[precount++] = values;
 				Log.i("preContentInsert", values.getAsString(KEY_FIELD) + " " + values.getAsString(VALUE_FIELD) + " " + (precount - 1) + " inserted");
 			} else if (i == 2) {
+				for(int j=0; j<preprecount; j++){
+					if(prepreContentValuesBase[j].getAsString(KEY_FIELD).equals(values.getAsString(KEY_FIELD))){
+						prepreContentValuesBase[j] = values;
+						return;
+					}
+				}
 				prepreContentValuesBase[preprecount++] = values;
 				Log.i("prepreContentInsert", values.getAsString(KEY_FIELD) + " " + values.getAsString(VALUE_FIELD) + " " + (preprecount - 1) + " inserted");
 			}
@@ -319,13 +337,12 @@ public class SimpleDynamoProvider extends ContentProvider {
 					} catch (UnknownHostException e) {
 						e.printStackTrace();
 					} catch (IOException e) {
-						i++;
-						if(avdNum[i].equals(selfAvdNum)){
+						if(avdNum[(i+1)%5].equals(selfAvdNum)){
 							String msg = "";
 							readLock.lock();
 							try {
-								for (int j = 0; j < count; j++) {
-									msg = msg + mContentValuesBase[j].getAsString(KEY_FIELD) + "\n" + mContentValuesBase[j].getAsString(VALUE_FIELD) + "\n";
+								for (int j = 0; j < precount; j++) {
+									msg = msg + preContentValuesBase[j].getAsString(KEY_FIELD) + "\n" + preContentValuesBase[j].getAsString(VALUE_FIELD) + "\n";
 								}
 							}finally {
 								readLock.unlock();
@@ -333,7 +350,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 							singleresult = msg;
 						}else {
 							try {
-								Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[i]) * 2);
+								Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(avdNum[(i+1)%5]) * 2);
 								ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
 								MsgToSend msgToSend = SetMsgToSend(10, selection, selfAvdNum);
 								outputStream.writeObject(msgToSend);
@@ -382,6 +399,18 @@ public class SimpleDynamoProvider extends ContentProvider {
 			int des = FindDes(selection);
 			String []sendto = {avdNum[des],avdNum[(des+1)%5],avdNum[(des+2)%5]};
 			String singleresult = null;
+			readLock.lock();
+			try {
+				for (int i = 0; i < count; i++) {
+					if (mContentValuesBase[i].getAsString(KEY_FIELD).equals(selection)) {
+						cs.addRow(new Object[]{mContentValuesBase[i].getAsString(KEY_FIELD),mContentValuesBase[i].getAsString(VALUE_FIELD)});
+						Log.i("FoundinMCon","Succeed");
+						return cs;
+					}
+				}
+			}finally {
+				readLock.unlock();
+			}
 			for(int i=0; i<3; i++){
 				try {
 					Socket socket= new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(sendto[i]) * 2);
@@ -391,9 +420,27 @@ public class SimpleDynamoProvider extends ContentProvider {
 					outputStream.flush();
 					ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
 					MsgToSend receivedMsg = (MsgToSend)inputStream.readObject();
+					if(receivedMsg == null) continue;
 					singleresult = receivedMsg.getMsg();
 					Log.i("QueryOneFrom",receivedMsg.getOriginal()+" " +singleresult);
 				} catch (UnknownHostException e) {
+					try {
+						Socket socket= new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), Integer.parseInt(sendto[++i]) * 2);
+						ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+						MsgToSend msgToSend = SetMsgToSend(11+i, selection,selfAvdNum);
+						outputStream.writeObject(msgToSend);
+						outputStream.flush();
+						ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
+						MsgToSend receivedMsg = (MsgToSend)inputStream.readObject();
+						singleresult = receivedMsg.getMsg();
+						Log.i("QueryOneFrom2",receivedMsg.getOriginal()+" " +singleresult);
+					} catch (UnknownHostException e1) {
+						e1.printStackTrace();
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}catch (ClassNotFoundException e1){
+						e1.printStackTrace();
+					}
 					e.printStackTrace();
 				} catch (IOException e) {
 					try {
@@ -563,7 +610,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 				//Log.i("type and avd", receivedMsg.getType()+receivedMsg.getOriginal());
 				String msg = "";
 				MsgToSend msgToSend = null;
-				ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+				ObjectOutputStream objectOutputStream = null;
 				switch (receivedMsg.getType()){
 
 					case 0://insert to mContent
@@ -594,6 +641,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 							readLock.unlock();
 						}
 						msgToSend = SetMsgToSend(9,msg, selfAvdNum);
+						objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 						objectOutputStream.writeObject(msgToSend);
 						objectOutputStream.flush();
 						break;
@@ -608,6 +656,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 							readLock.unlock();
 						}
 						msgToSend = SetMsgToSend(10,msg, selfAvdNum);
+						objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 						objectOutputStream.writeObject(msgToSend);
 						objectOutputStream.flush();
 						break;
@@ -624,6 +673,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 						}finally {
 							readLock.unlock();
 						}
+						objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 						objectOutputStream.writeObject(msgToSend);
 						objectOutputStream.flush();
 						break;
@@ -640,6 +690,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 						}finally {
 							readLock.unlock();
 						}
+						objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 						objectOutputStream.writeObject(msgToSend);
 						objectOutputStream.flush();
 						break;
@@ -656,6 +707,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 						}finally {
 							readLock.unlock();
 						}
+						objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 						objectOutputStream.writeObject(msgToSend);
 						objectOutputStream.flush();
 						break;
@@ -670,6 +722,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 							readLock.unlock();
 						}
 						msgToSend = SetMsgToSend(9,msg, selfAvdNum);
+						objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 						objectOutputStream.writeObject(msgToSend);
 						objectOutputStream.flush();
 						break;
@@ -684,6 +737,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 							readLock.unlock();
 						}
 						msgToSend = SetMsgToSend(9,msg, selfAvdNum);
+						objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
 						objectOutputStream.writeObject(msgToSend);
 						objectOutputStream.flush();
 						break;

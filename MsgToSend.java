@@ -13,7 +13,7 @@ public class MsgToSend implements java.io.Serializable{
 
     private String original = null;
     private String msg = null;
-    private String type = null;
+    private int type = 0;
     void MsgToSend(){
 
     }
@@ -23,7 +23,7 @@ public class MsgToSend implements java.io.Serializable{
     public  void setMsg(String msg){
         this.msg = msg;
     }
-    public void settype(String type){
+    public void settype(int type){
         this.type = type;
     }
 
@@ -33,7 +33,7 @@ public class MsgToSend implements java.io.Serializable{
     public String getMsg(){
         return msg;
     }
-    public String getType(){
+    public int getType(){
         return type;
     }
 }
